@@ -58,20 +58,22 @@ export default async function PostPage({
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-12">
       <Link
         href={`/c/${slug}`}
-        className="text-sm text-zinc-400 hover:text-zinc-200"
+        className="text-sm text-charcoal-400 hover:text-charcoal-200"
       >
         &larr; {category.name}
       </Link>
 
       {error && (
-        <p className="rounded border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+        <p className="rounded border border-danger-600 bg-danger-950 px-3 py-2 text-sm text-danger-400">
           {error}
         </p>
       )}
 
-      <article className="flex flex-col gap-2 rounded border border-zinc-800 p-4">
+      <article className="flex flex-col gap-2 rounded border border-charcoal-700 bg-charcoal-900 p-4">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-xl font-semibold">
+          <h1
+            className={`text-xl font-semibold ${post.is_pinned ? "text-gold-400" : "text-charcoal-200"}`}
+          >
             {post.is_pinned && "📌 "}
             {post.title}
           </h1>
@@ -88,7 +90,7 @@ export default async function PostPage({
               >
                 <button
                   type="submit"
-                  className="text-zinc-400 hover:text-zinc-200"
+                  className="text-charcoal-400 hover:text-gold-400"
                 >
                   {post.is_pinned ? "Unpin" : "Pin"}
                 </button>
@@ -104,7 +106,7 @@ export default async function PostPage({
               >
                 <button
                   type="submit"
-                  className="text-zinc-400 hover:text-zinc-200"
+                  className="text-charcoal-400 hover:text-charcoal-200"
                 >
                   {post.is_locked ? "Unlock" : "Lock"}
                 </button>
@@ -112,7 +114,7 @@ export default async function PostPage({
               <form action={deletePost.bind(null, slug, post.id)}>
                 <button
                   type="submit"
-                  className="text-red-400 hover:text-red-300"
+                  className="text-danger-400 hover:text-danger-500"
                 >
                   Delete
                 </button>
@@ -120,16 +122,18 @@ export default async function PostPage({
             </div>
           )}
         </div>
-        <p className="text-sm text-zinc-400">
+        <p className="text-sm text-charcoal-400">
           by {post.profiles?.display_name ?? "Unknown"} &middot;{" "}
           {new Date(post.created_at).toLocaleString()}
-          {post.is_locked && <span className="ml-2 uppercase">locked</span>}
+          {post.is_locked && (
+            <span className="ml-2 uppercase text-charcoal-500">locked</span>
+          )}
         </p>
-        <p className="whitespace-pre-wrap">{post.body}</p>
+        <p className="whitespace-pre-wrap text-charcoal-200">{post.body}</p>
       </article>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-lg font-semibold text-charcoal-200">
           Comments ({visibleComments.length})
         </h2>
 
@@ -137,10 +141,10 @@ export default async function PostPage({
           {visibleComments.map((comment) => (
             <li
               key={comment.id}
-              className="rounded border border-zinc-800 p-3"
+              className="rounded border border-charcoal-700 bg-charcoal-900 p-3"
             >
               <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-charcoal-400">
                   {comment.profiles?.display_name ?? "Unknown"} &middot;{" "}
                   {new Date(comment.created_at).toLocaleString()}
                 </p>
@@ -150,21 +154,23 @@ export default async function PostPage({
                   >
                     <button
                       type="submit"
-                      className="text-xs text-red-400 hover:text-red-300"
+                      className="text-xs text-danger-400 hover:text-danger-500"
                     >
                       Delete
                     </button>
                   </form>
                 )}
               </div>
-              <p className="whitespace-pre-wrap">{comment.body}</p>
+              <p className="whitespace-pre-wrap text-charcoal-200">
+                {comment.body}
+              </p>
             </li>
           ))}
         </ul>
 
         {profile ? (
           post.is_locked ? (
-            <p className="text-sm text-zinc-500">This post is locked.</p>
+            <p className="text-sm text-charcoal-500">This post is locked.</p>
           ) : (
             <form
               action={createComment.bind(null, slug, postSlug, post.id)}
@@ -175,19 +181,19 @@ export default async function PostPage({
                 required
                 rows={4}
                 placeholder="Write a reply..."
-                className="rounded border border-zinc-700 bg-transparent px-3 py-2"
+                className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
               />
               <button
                 type="submit"
-                className="self-start rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+                className="self-start rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
               >
                 Reply
               </button>
             </form>
           )
         ) : (
-          <p className="text-sm text-zinc-500">
-            <Link href="/login" className="text-emerald-400 hover:underline">
+          <p className="text-sm text-charcoal-500">
+            <Link href="/login" className="text-green-400 hover:underline">
               Log in
             </Link>{" "}
             to reply.

@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Charcoal - page/panel backgrounds, borders, body text */
+  --color-charcoal-950: #0c0f0d;
+  --color-charcoal-900: #141815;
+  --color-charcoal-800: #1c211d;
+  --color-charcoal-700: #2a312b;
+  --color-charcoal-600: #3c453d;
+  --color-charcoal-500: #5b665c;
+  --color-charcoal-400: #8a968b;
+  --color-charcoal-300: #b7c0b8;
+  --color-charcoal-200: #dde3de;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Green - primary brand/action color */
+  --color-green-950: #0a1f13;
+  --color-green-900: #123a22;
+  --color-green-800: #1d5934;
+  --color-green-700: #2b7a48;
+  --color-green-600: #3a9c5c;
+  --color-green-500: #4fb872;
+  --color-green-400: #74cf92;
+
+  /* Gold - accent for hierarchy/emphasis (owner badge, pinned marker) */
+  --color-gold-950: #241b0a;
+  --color-gold-600: #a9822c;
+  --color-gold-500: #c9a13b;
+  --color-gold-400: #e0bd5e;
+
+  /* Danger - muted blood-red for destructive actions */
+  --color-danger-950: #2a1210;
+  --color-danger-600: #7a2a26;
+  --color-danger-500: #9c3a34;
+  --color-danger-400: #c85850;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-charcoal-950);
+  color: var(--color-charcoal-200);
 }

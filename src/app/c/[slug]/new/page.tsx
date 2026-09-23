@@ -19,10 +19,10 @@ export default async function NewPostPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-12">
-      <h1 className="text-2xl font-semibold">New post</h1>
+      <h1 className="text-2xl font-semibold text-charcoal-200">New post</h1>
 
       {error && (
-        <p className="rounded border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+        <p className="rounded border border-danger-600 bg-danger-950 px-3 py-2 text-sm text-danger-400">
           {error}
         </p>
       )}
@@ -32,18 +32,18 @@ export default async function NewPostPage({
         className="flex flex-col gap-4"
       >
         <div className="flex flex-col gap-1">
-          <label htmlFor="title" className="text-sm">
+          <label htmlFor="title" className="text-sm text-charcoal-300">
             Title
           </label>
           <input
             id="title"
             name="title"
             required
-            className="rounded border border-zinc-700 bg-transparent px-3 py-2"
+            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="body" className="text-sm">
+          <label htmlFor="body" className="text-sm text-charcoal-300">
             Message
           </label>
           <textarea
@@ -51,12 +51,12 @@ export default async function NewPostPage({
             name="body"
             required
             rows={8}
-            className="rounded border border-zinc-700 bg-transparent px-3 py-2"
+            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
           />
         </div>
         <button
           type="submit"
-          className="self-start rounded bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-600"
+          className="self-start rounded bg-green-700 px-4 py-2 font-medium text-white hover:bg-green-600"
         >
           Post
         </button>

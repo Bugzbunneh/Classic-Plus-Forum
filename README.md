@@ -86,6 +86,23 @@ Email/password and Discord OAuth, both via Supabase Auth (`src/lib/actions/auth.
 signup creates a `profiles` row automatically (via a database trigger) with the default
 `member` role.
 
+## Theme
+
+Defined as Tailwind v4 theme tokens in [`src/app/globals.css`](src/app/globals.css) — use
+these utility classes (`bg-charcoal-900`, `text-green-400`, etc.) rather than Tailwind's stock
+`zinc`/`emerald`/etc. when building new pages, so everything stays on the same palette:
+
+- **`charcoal-950` → `charcoal-200`** — page/panel backgrounds, borders, and body text
+  (950 darkest, 200 near-white).
+- **`green-950` → `green-400`** — primary brand/action color (links, buttons, "member" tone).
+- **`gold-950`, `gold-600` → `gold-400`** — accent for hierarchy/emphasis (owner badge, pinned
+  post marker).
+- **`danger-950`, `danger-600` → `danger-400`** — muted blood-red for destructive actions
+  (delete buttons, error messages).
+
+The site is dark-only by design (no light mode) — `color-scheme: dark` is set globally rather
+than branching on `prefers-color-scheme`.
+
 ## TODO
 
 - **Enable Discord OAuth in Supabase.** The sign-in/sign-up buttons call
@@ -96,5 +113,7 @@ signup creates a `profiles` row automatically (via a database trigger) with the 
   3. Copy the Client ID and Client Secret into Supabase dashboard → Authentication →
      Sign In / Providers → Discord.
   - Email/password auth works today without this step.
-- Category → post → comment pages (clicking a category on the homepage currently 404s).
-- Apply the Warcraft charcoal/green theme (currently default Tailwind styling).
+  - Currently deferred on purpose — will be picked up last, after the rest of the forum is built.
+- Re-enable "Confirm email" in Supabase (Authentication → Providers → Email) before real
+  users sign up — it's currently off, which was needed to test signup end-to-end without an
+  email inbox.

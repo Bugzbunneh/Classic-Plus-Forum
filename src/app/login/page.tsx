@@ -10,10 +10,10 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-4 py-16">
-      <h1 className="text-2xl font-semibold">Log in</h1>
+      <h1 className="text-2xl font-semibold text-charcoal-200">Log in</h1>
 
       {error && (
-        <p className="rounded border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+        <p className="rounded border border-danger-600 bg-danger-950 px-3 py-2 text-sm text-danger-400">
           {error}
         </p>
       )}
@@ -27,16 +27,16 @@ export default async function LoginPage({
         </button>
       </form>
 
-      <div className="flex items-center gap-3 text-sm text-zinc-500">
-        <div className="h-px flex-1 bg-zinc-700" />
+      <div className="flex items-center gap-3 text-sm text-charcoal-500">
+        <div className="h-px flex-1 bg-charcoal-700" />
         or
-        <div className="h-px flex-1 bg-zinc-700" />
+        <div className="h-px flex-1 bg-charcoal-700" />
       </div>
 
       <form action={login} className="flex flex-col gap-4">
         {next && <input type="hidden" name="next" value={next} />}
         <div className="flex flex-col gap-1">
-          <label htmlFor="email" className="text-sm">
+          <label htmlFor="email" className="text-sm text-charcoal-300">
             Email
           </label>
           <input
@@ -44,12 +44,12 @@ export default async function LoginPage({
             name="email"
             type="email"
             required
-            className="rounded border border-zinc-700 bg-transparent px-3 py-2"
+            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="password" className="text-sm">
+          <label htmlFor="password" className="text-sm text-charcoal-300">
             Password
           </label>
           <input
@@ -57,21 +57,21 @@ export default async function LoginPage({
             name="password"
             type="password"
             required
-            className="rounded border border-zinc-700 bg-transparent px-3 py-2"
+            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
           />
         </div>
 
         <button
           type="submit"
-          className="rounded bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-600"
+          className="rounded bg-green-700 px-4 py-2 font-medium text-white hover:bg-green-600"
         >
           Log in
         </button>
       </form>
 
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-charcoal-400">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-emerald-400 hover:underline">
+        <Link href="/signup" className="text-green-400 hover:underline">
           Sign up
         </Link>
       </p>
