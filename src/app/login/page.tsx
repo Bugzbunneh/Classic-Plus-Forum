@@ -4,9 +4,9 @@ import { login, signInWithDiscord } from "@/lib/actions/auth";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-4 py-16">
@@ -34,6 +34,7 @@ export default async function LoginPage({
       </div>
 
       <form action={login} className="flex flex-col gap-4">
+        {next && <input type="hidden" name="next" value={next} />}
         <div className="flex flex-col gap-1">
           <label htmlFor="email" className="text-sm">
             Email

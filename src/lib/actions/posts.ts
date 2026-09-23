@@ -1,0 +1,128 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/dal";
+import { uniqueSlug } from "@/lib/slug";
+
+export async function createPost(categorySlug: string, formData: FormData) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    redirect(`/login?next=${encodeURIComponent(`/c/${categorySlug}/new`)}`);
+  }
+
+  const title = (formData.get("title") as string).trim();
+  const body = (formData.get("body") as string).trim();
+
+  if (!title || !body) {
+    redirect(
+      `/c/${categorySlug}/new?error=${encodeURIComponent("Title and message are required")}`,
+    );
+  }
+
+  const supabase = await createClient();
+
+  const { data: category } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("slug", categorySlug)
+    .single();
+
+  if (!category) {
+    redirect(`/c/${categorySlug}?error=${encodeURIComponent("Category not found")}`);
+  }
+
+  const slug = uniqueSlug(title);
+
+  const { error } = await supabase.from("posts").insert({
+    category_id: category.id,
+    author_id: profile.id,
+    title,
+    body,
+    slug,
+  });
+
+  if (error) {
+    redirect(
+      `/c/${categorySlug}/new?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  revalidatePath(`/c/${categorySlug}`);
+  redirect(`/c/${categorySlug}/${slug}`);
+}
+
+export async function createComment(
+  categorySlug: string,
+  postSlug: string,
+  postId: string,
+  formData: FormData,
+) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    redirect(
+      `/login?next=${encodeURIComponent(`/c/${categorySlug}/${postSlug}`)}`,
+    );
+  }
+
+  const body = (formData.get("body") as string).trim();
+  if (!body) {
+    return;
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("comments").insert({
+    post_id: postId,
+    author_id: profile.id,
+    body,
+  });
+
+  if (error) {
+    redirect(
+      `/c/${categorySlug}/${postSlug}?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+}
+
+export async function togglePostPin(
+  categorySlug: string,
+  postSlug: string,
+  postId: string,
+  isPinned: boolean,
+) {
+  const supabase = await createClient();
+  await supabase.from("posts").update({ is_pinned: !isPinned }).eq("id", postId);
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+  revalidatePath(`/c/${categorySlug}`);
+}
+
+export async function togglePostLock(
+  categorySlug: string,
+  postSlug: string,
+  postId: string,
+  isLocked: boolean,
+) {
+  const supabase = await createClient();
+  await supabase.from("posts").update({ is_locked: !isLocked }).eq("id", postId);
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+}
+
+export async function deletePost(categorySlug: string, postId: string) {
+  const supabase = await createClient();
+  await supabase.from("posts").update({ is_deleted: true }).eq("id", postId);
+  revalidatePath(`/c/${categorySlug}`);
+  redirect(`/c/${categorySlug}`);
+}
+
+export async function deleteComment(
+  categorySlug: string,
+  postSlug: string,
+  commentId: string,
+) {
+  const supabase = await createClient();
+  await supabase.from("comments").update({ is_deleted: true }).eq("id", commentId);
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+}
