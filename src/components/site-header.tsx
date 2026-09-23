@@ -14,6 +14,14 @@ export async function SiteHeader() {
       <nav className="flex items-center gap-4 text-sm">
         {profile ? (
           <>
+            {(profile.role === "admin" || profile.role === "owner") && (
+              <Link
+                href="/admin/members"
+                className="text-charcoal-400 hover:text-charcoal-200"
+              >
+                Members
+              </Link>
+            )}
             <span className="flex items-center text-charcoal-300">
               {profile.display_name}
               {profile.role !== "member" && (

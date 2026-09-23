@@ -45,6 +45,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          section_id: string
           slug: string
           sort_order: number
         }
@@ -53,6 +54,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          section_id: string
           slug: string
           sort_order?: number
         }
@@ -61,10 +63,19 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          section_id?: string
           slug?: string
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comments: {
         Row: {
@@ -204,11 +215,36 @@ export type Database = {
         }
         Relationships: []
       }
+      sections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      current_user_is_banned: { Args: never; Returns: boolean }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]

@@ -44,11 +44,12 @@ Defined in [`supabase/migrations/0001_initial_schema.sql`](supabase/migrations/0
 with starter data in [`supabase/seed.sql`](supabase/seed.sql).
 
 - **`profiles`** — one row per authenticated user (extends Supabase's own `auth.users`).
-  Holds `username`, `display_name`, `avatar_url`, `bio`, and `role`
-  (`member` / `admin` / `owner`, defaults to `member`). Created automatically on signup
-  via a trigger.
-- **`categories`** — top-level forum sections (Introductions, General Discussion,
-  Class & Gameplay, Events, ...).
+  Holds `username`, `display_name`, `avatar_url`, `bio`, `role`
+  (`member` / `admin` / `owner`, defaults to `member`), and `is_banned`. Created
+  automatically on signup via a trigger.
+- **`sections`** — top-level groupings shown on the homepage (currently "Social" and "Game").
+- **`categories`** — forum boards within a section (Introductions, General Discussion under
+  Social; Class & Gameplay, Events under Game).
 - **`posts`** — a top-level thread within a category (title + body), with `is_pinned`,
   `is_locked`, and `is_deleted` flags for moderation.
 - **`comments`** — a reply to a post.
@@ -57,10 +58,18 @@ Role enforcement lives in the database, not just the app:
 
 - Row Level Security policies mean anyone can read; only the author can edit their own
   post/comment; only `admin`/`owner` can edit or delete anyone's post/comment, lock/pin
-  posts, or manage categories.
-- A database trigger blocks role changes from anyone except the `owner`, and blocks
-  ban/unban from anyone below `admin` — so this can't be bypassed by calling the API
-  directly, only by going through app logic that's actually allowed to do it.
+  posts, or manage categories/sections.
+- Database triggers close gaps RLS can't express on its own (Postgres RLS has no
+  column-level granularity — see `0004_fix_guards.sql`): role changes are blocked from
+  anyone except the `owner`, ban/unban is blocked from anyone below `admin`, and a
+  non-moderator author can't pin/lock their own post or undo a moderator's soft-delete on
+  their own post/comment.
+- `is_banned` actually blocks new posts/comments (`0009_ban_enforcement.sql`) — it isn't
+  just a display flag.
+- Role changes can only happen via a direct `postgres` connection (a migration or the SQL
+  Editor) — never through the app or API, even with elevated keys. This is deliberate: it's
+  what makes bootstrapping the very first owner possible without opening a self-promotion
+  hole for everyone else. See `0008_promote_owner.sql` for how the first owner was set.
 
 To apply the schema, paste the migration file into the Supabase project's SQL Editor (or,
 once the project is linked with the Supabase CLI, run `supabase db push`), then run
@@ -85,6 +94,13 @@ and fill in your Supabase project URL and anon key.
 Email/password and Discord OAuth, both via Supabase Auth (`src/lib/actions/auth.ts`). A new
 signup creates a `profiles` row automatically (via a database trigger) with the default
 `member` role.
+
+## Role management
+
+`/admin/members` (linked from the header as "Members" for admins/owners) lists every member.
+The owner can change anyone's role from there; admins and the owner can ban/unban. Both
+actions (`src/lib/actions/members.ts`) rely on the database's RLS policies and triggers as the
+actual enforcement — the UI only decides what to show, not what's allowed.
 
 ## Theme
 
