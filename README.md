@@ -38,6 +38,34 @@ game-specific areas like class discussion, gameplay, and events.
 - **Backend/DB/Auth:** Supabase (hosted Postgres + Auth), with Row Level Security policies used
   to enforce role-based permissions (member/admin/owner) at the database level
 
+## Database schema
+
+Defined in [`supabase/migrations/0001_initial_schema.sql`](supabase/migrations/0001_initial_schema.sql),
+with starter data in [`supabase/seed.sql`](supabase/seed.sql).
+
+- **`profiles`** — one row per authenticated user (extends Supabase's own `auth.users`).
+  Holds `username`, `display_name`, `avatar_url`, `bio`, and `role`
+  (`member` / `admin` / `owner`, defaults to `member`). Created automatically on signup
+  via a trigger.
+- **`categories`** — top-level forum sections (Introductions, General Discussion,
+  Class & Gameplay, Events, ...).
+- **`posts`** — a top-level thread within a category (title + body), with `is_pinned`,
+  `is_locked`, and `is_deleted` flags for moderation.
+- **`comments`** — a reply to a post.
+
+Role enforcement lives in the database, not just the app:
+
+- Row Level Security policies mean anyone can read; only the author can edit their own
+  post/comment; only `admin`/`owner` can edit or delete anyone's post/comment, lock/pin
+  posts, or manage categories.
+- A database trigger blocks role changes from anyone except the `owner`, and blocks
+  ban/unban from anyone below `admin` — so this can't be bypassed by calling the API
+  directly, only by going through app logic that's actually allowed to do it.
+
+To apply the schema, paste the migration file into the Supabase project's SQL Editor (or,
+once the project is linked with the Supabase CLI, run `supabase db push`), then run
+`seed.sql` to add the starter categories.
+
 ## Getting started
 
 Install dependencies and run the dev server:
