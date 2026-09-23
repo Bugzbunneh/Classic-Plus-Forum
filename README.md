@@ -53,6 +53,14 @@ with starter data in [`supabase/seed.sql`](supabase/seed.sql).
 - **`posts`** — a top-level thread within a category (title + body), with `is_pinned`,
   `is_locked`, and `is_deleted` flags for moderation.
 - **`comments`** — a reply to a post.
+- **`reactions`** — a single simple 👍 per user per post/comment (one reaction type on
+  purpose, not a full emoji picker).
+- **`reports`** — a member flagging a post/comment for moderator review (`open`/`resolved`).
+- **`notifications`** — created automatically (via a trigger on comment insert) to tell a
+  post's author someone replied; never self-notifies.
+- **`moderation_log`** — an append-only record of role/ban changes and pin/lock/delete/restore
+  on posts/comments, written by triggers so it captures every path that changes those
+  columns, not just the ones the app happens to call through.
 
 Role enforcement lives in the database, not just the app:
 
@@ -70,6 +78,19 @@ Role enforcement lives in the database, not just the app:
   Editor) — never through the app or API, even with elevated keys. This is deliberate: it's
   what makes bootstrapping the very first owner possible without opening a self-promotion
   hole for everyone else. See `0008_promote_owner.sql` for how the first owner was set.
+- Posting/commenting is rate-limited (5 posts, 10 comments per minute per author —
+  `0016_rate_limiting.sql`) to deter spam/scripted flooding.
+
+**A recurring bug worth knowing about:** several trigger functions were written as
+`security definer` while also checking `current_user = 'postgres'` as a "only allow direct
+database access" bypass. Inside a `security definer` function, `current_user` resolves to the
+function's *owner* (always `postgres`, since migrations run as `postgres`) rather than the
+actual caller — so that bypass check was silently always true, defeating the guard entirely.
+This happened twice (`guard_profile_changes` in `0004_fix_guards.sql`, and the rate-limit
+triggers in `0018_fix_rate_limit_guard.sql`) and was only caught by live end-to-end testing,
+not by reading the SQL. If you add a similar guard: don't mark it `security definer` unless it
+actually needs to bypass RLS on a *different* table — check the actual behavior with a live
+test, not just a code read.
 
 To apply the schema, paste the migration file into the Supabase project's SQL Editor (or,
 once the project is linked with the Supabase CLI, run `supabase db push`), then run
@@ -88,6 +109,8 @@ Open [http://localhost:3000](http://localhost:3000) to view it.
 
 You'll need a Supabase project for the database and auth. Copy `.env.example` to `.env.local`
 and fill in your Supabase project URL and anon key.
+
+Run `pnpm test` for the unit test suite.
 
 ## Authentication
 
@@ -119,17 +142,77 @@ these utility classes (`bg-charcoal-900`, `text-green-400`, etc.) rather than Ta
 The site is dark-only by design (no light mode) — `color-scheme: dark` is set globally rather
 than branching on `prefers-color-scheme`.
 
+## Posts, comments, and profiles
+
+- Authors (or moderators) can edit their own post/comment body after posting
+  (`updatePost`/`updateComment` in `src/lib/actions/posts.ts`). Comment editing happens inline
+  on the post page via a `?editComment=<id>` query param — no client-side JS needed, matching
+  the rest of the app's full-page-reload style.
+- Post bodies and comments support a deliberately minimal `**bold**`/`*italic*` syntax
+  (`src/lib/format-text.tsx`), rendered as React text nodes — never `dangerouslySetInnerHTML`,
+  so there's no HTML-injection surface no matter what a user types.
+- Category post lists and post comment threads are paginated (20 per page).
+- `/u/[username]` shows a member's avatar, role, join date, and recent posts.
+- `/settings` lets a signed-in user upload an avatar (Supabase Storage, `avatars` bucket —
+  `0017_avatar_storage.sql`). Each user can only write inside their own `<user_id>/` folder;
+  uploaded avatars are publicly readable. Changing display name/bio isn't wired up yet (see
+  TODO).
+
+## Moderation tools
+
+- **Reports** (`/report` to file one, `/admin/reports` to review) — any signed-in member can
+  flag a post or comment with a reason; admins/owner see open reports and can resolve them.
+  The header shows an open-report count badge for moderators.
+- **Moderation log** (`/admin/log`) — a read-only audit trail of role/ban changes and
+  pin/lock/delete/restore actions, newest first.
+
+## Notifications and reactions
+
+- Replying to someone's post notifies them (bell-style unread count in the header,
+  `/notifications` to view and mark all read). Never notifies you of your own replies.
+- A single 👍 reaction is available on posts and comments (not a full emoji picker, to match
+  the plain oldschool-forum brief).
+
+## Testing
+
+- `pnpm test` runs a small Vitest suite (currently just `src/lib/slug.test.ts`) — a starting
+  point, not full coverage.
+- The database layer (RLS policies, triggers, guards) has been verified by hand through live
+  end-to-end scripts against the real Supabase project for each new feature (signup → act →
+  assert → clean up test data), not by a checked-in automated suite. Setting up Supabase's
+  local dev stack (needs Docker) would be the natural next step to make that repeatable.
+
 ## TODO
 
-- **Enable Discord OAuth in Supabase.** The sign-in/sign-up buttons call
+### Before real users sign up
+
+- Re-enable "Confirm email" in Supabase (Authentication → Providers → Email) — it's currently
+  off, which was needed to test signup end-to-end without an email inbox.
+- **Password reset flow.** Supabase Auth supports it (`resetPasswordForEmail` +
+  `updateUser`), but there's no UI for it yet — anyone who forgets their password is stuck.
+- **Edit display name/bio.** Avatar upload is done (`/settings`), but there's still no way to
+  change display name or bio after signup.
+- **Empty test bucket left behind.** An `e2e-test-bucket` storage bucket from testing the
+  avatar upload policies couldn't be cleaned up via a migration (Postgres blocks direct
+  `DELETE` on `storage.buckets` — "Use the Storage API instead"). It's empty and unused by the
+  app; delete it from the Supabase dashboard's Storage section whenever convenient.
+
+### Further hardening
+
+- **Rate-limit signups**, not just posts/comments — nothing currently stops a script from
+  creating accounts. Supabase Auth has some built-in abuse protection, but nothing forum-side.
+- **Fuller automated test coverage.** `pnpm test` covers pure utility functions; the RLS
+  policies and triggers are still only verified by hand via live scripts against Supabase, not
+  a checked-in, repeatable suite (would need Supabase's local dev stack, which needs Docker).
+
+### Deferred on purpose
+
+- **Discord OAuth.** The sign-in/sign-up buttons call
   `supabase.auth.signInWithOAuth({ provider: 'discord' })`, but this won't work until Discord
   is set up as a provider:
   1. Create an application at <https://discord.com/developers/applications>.
   2. Add redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`.
   3. Copy the Client ID and Client Secret into Supabase dashboard → Authentication →
      Sign In / Providers → Discord.
-  - Email/password auth works today without this step.
-  - Currently deferred on purpose — will be picked up last, after the rest of the forum is built.
-- Re-enable "Confirm email" in Supabase (Authentication → Providers → Email) before real
-  users sign up — it's currently off, which was needed to test signup end-to-end without an
-  email inbox.
+  - Email/password auth works today without this step. Being picked up last, after the rest
+    of the forum is built.

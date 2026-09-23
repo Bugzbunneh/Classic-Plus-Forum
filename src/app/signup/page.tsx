@@ -1,5 +1,8 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { signup, signInWithDiscord } from "@/lib/actions/auth";
+
+export const metadata: Metadata = { title: "Sign up" };
 
 export default async function SignupPage({
   searchParams,

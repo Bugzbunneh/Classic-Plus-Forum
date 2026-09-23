@@ -1,9 +1,32 @@
 import Link from "next/link";
 import { getCurrentProfile } from "@/lib/dal";
+import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/actions/auth";
 
 export async function SiteHeader() {
   const profile = await getCurrentProfile();
+  const isModerator = profile?.role === "admin" || profile?.role === "owner";
+
+  let unreadCount = 0;
+  let openReportCount = 0;
+
+  if (profile) {
+    const supabase = await createClient();
+    const { count } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", profile.id)
+      .eq("is_read", false);
+    unreadCount = count ?? 0;
+
+    if (isModerator) {
+      const { count: reportCount } = await supabase
+        .from("reports")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "open");
+      openReportCount = reportCount ?? 0;
+    }
+  }
 
   return (
     <header className="flex items-center justify-between border-b border-charcoal-700 bg-charcoal-900 px-6 py-4">
@@ -14,15 +37,54 @@ export async function SiteHeader() {
       <nav className="flex items-center gap-4 text-sm">
         {profile ? (
           <>
-            {(profile.role === "admin" || profile.role === "owner") && (
-              <Link
-                href="/admin/members"
-                className="text-charcoal-400 hover:text-charcoal-200"
-              >
-                Members
-              </Link>
+            {isModerator && (
+              <>
+                <Link
+                  href="/admin/members"
+                  className="text-charcoal-400 hover:text-charcoal-200"
+                >
+                  Members
+                </Link>
+                <Link
+                  href="/admin/reports"
+                  className="text-charcoal-400 hover:text-charcoal-200"
+                >
+                  Reports
+                  {openReportCount > 0 && (
+                    <span className="ml-1 rounded bg-danger-600 px-1.5 py-0.5 text-xs text-white">
+                      {openReportCount}
+                    </span>
+                  )}
+                </Link>
+                <Link
+                  href="/admin/log"
+                  className="text-charcoal-400 hover:text-charcoal-200"
+                >
+                  Log
+                </Link>
+              </>
             )}
-            <span className="flex items-center text-charcoal-300">
+            <Link
+              href="/notifications"
+              className="text-charcoal-400 hover:text-charcoal-200"
+            >
+              Notifications
+              {unreadCount > 0 && (
+                <span className="ml-1 rounded bg-green-700 px-1.5 py-0.5 text-xs text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              href="/settings"
+              className="text-charcoal-400 hover:text-charcoal-200"
+            >
+              Settings
+            </Link>
+            <Link
+              href={`/u/${profile.username}`}
+              className="flex items-center text-charcoal-300 hover:text-charcoal-100"
+            >
               {profile.display_name}
               {profile.role !== "member" && (
                 <span
@@ -35,7 +97,7 @@ export async function SiteHeader() {
                   {profile.role}
                 </span>
               )}
-            </span>
+            </Link>
             <form action={logout}>
               <button
                 type="submit"

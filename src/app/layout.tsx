@@ -14,7 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Classic Plus Forum",
+  title: {
+    default: "Classic Plus Forum",
+    template: "%s | Classic Plus Forum",
+  },
   description: "Guild forum for World of Warcraft: Forever",
 };
 

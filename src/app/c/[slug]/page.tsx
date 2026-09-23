@@ -1,14 +1,39 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 
-export default async function CategoryPage({
+const POSTS_PER_PAGE = 20;
+
+export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data: category } = await supabase
+    .from("categories")
+    .select("name, description")
+    .eq("slug", slug)
+    .single();
+
+  return {
+    title: category?.name ?? "Category",
+    description: category?.description ?? undefined,
+  };
+}
+
+export default async function CategoryPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { slug } = await params;
+  const { page: pageParam } = await searchParams;
   const supabase = await createClient();
   const profile = await getCurrentProfile();
 
@@ -22,15 +47,23 @@ export default async function CategoryPage({
     notFound();
   }
 
-  const { data: posts } = await supabase
+  const page = Math.max(1, Number(pageParam) || 1);
+  const from = (page - 1) * POSTS_PER_PAGE;
+  const to = from + POSTS_PER_PAGE - 1;
+
+  const { data: posts, count } = await supabase
     .from("posts")
     .select(
-      "id, title, slug, is_pinned, is_locked, created_at, profiles(display_name)",
+      "id, title, slug, is_pinned, is_locked, created_at, profiles(username, display_name)",
+      { count: "exact" },
     )
     .eq("category_id", category.id)
     .eq("is_deleted", false)
     .order("is_pinned", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  const totalPages = Math.max(1, Math.ceil((count ?? 0) / POSTS_PER_PAGE));
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-12">
@@ -71,11 +104,21 @@ export default async function CategoryPage({
                     locked
                   </span>
                 )}
-                <p className="text-sm text-charcoal-400">
-                  by {post.profiles?.display_name ?? "Unknown"} &middot;{" "}
-                  {new Date(post.created_at).toLocaleDateString()}
-                </p>
               </Link>
+              <p className="text-sm text-charcoal-400">
+                by{" "}
+                {post.profiles?.username ? (
+                  <Link
+                    href={`/u/${post.profiles.username}`}
+                    className="hover:text-charcoal-200"
+                  >
+                    {post.profiles.display_name}
+                  </Link>
+                ) : (
+                  "Unknown"
+                )}{" "}
+                &middot; {new Date(post.created_at).toLocaleDateString()}
+              </p>
             </li>
           ))
         ) : (
@@ -84,6 +127,30 @@ export default async function CategoryPage({
           </li>
         )}
       </ul>
+
+      {totalPages > 1 && (
+        <div className="flex items-center gap-4 text-sm text-charcoal-400">
+          {page > 1 && (
+            <Link
+              href={`/c/${slug}?page=${page - 1}`}
+              className="hover:text-charcoal-200"
+            >
+              &larr; Previous
+            </Link>
+          )}
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          {page < totalPages && (
+            <Link
+              href={`/c/${slug}?page=${page + 1}`}
+              className="hover:text-charcoal-200"
+            >
+              Next &rarr;
+            </Link>
+          )}
+        </div>
+      )}
     </main>
   );
 }

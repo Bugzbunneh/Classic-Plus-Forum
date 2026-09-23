@@ -126,3 +126,86 @@ export async function deleteComment(
   await supabase.from("comments").update({ is_deleted: true }).eq("id", commentId);
   revalidatePath(`/c/${categorySlug}/${postSlug}`);
 }
+
+export async function updatePost(
+  categorySlug: string,
+  postSlug: string,
+  postId: string,
+  formData: FormData,
+) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    redirect(`/login?next=${encodeURIComponent(`/c/${categorySlug}/${postSlug}/edit`)}`);
+  }
+
+  const title = (formData.get("title") as string).trim();
+  const body = (formData.get("body") as string).trim();
+
+  if (!title || !body) {
+    redirect(
+      `/c/${categorySlug}/${postSlug}/edit?error=${encodeURIComponent("Title and message are required")}`,
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("posts")
+    .update({ title, body })
+    .eq("id", postId);
+
+  if (error) {
+    redirect(
+      `/c/${categorySlug}/${postSlug}/edit?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+  redirect(`/c/${categorySlug}/${postSlug}`);
+}
+
+export async function updateComment(
+  categorySlug: string,
+  postSlug: string,
+  commentId: string,
+  formData: FormData,
+) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    redirect(`/login?next=${encodeURIComponent(`/c/${categorySlug}/${postSlug}`)}`);
+  }
+
+  const body = (formData.get("body") as string).trim();
+  if (!body) {
+    return;
+  }
+
+  const supabase = await createClient();
+  await supabase.from("comments").update({ body }).eq("id", commentId);
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+}
+
+export async function toggleReaction(
+  categorySlug: string,
+  postSlug: string,
+  postId: string | null,
+  commentId: string | null,
+  hasReacted: boolean,
+) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    redirect(`/login?next=${encodeURIComponent(`/c/${categorySlug}/${postSlug}`)}`);
+  }
+
+  const supabase = await createClient();
+
+  if (hasReacted) {
+    const query = supabase.from("reactions").delete().eq("user_id", profile.id);
+    await (postId ? query.eq("post_id", postId) : query.eq("comment_id", commentId!));
+  } else {
+    await supabase
+      .from("reactions")
+      .insert({ user_id: profile.id, post_id: postId, comment_id: commentId });
+  }
+
+  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+}

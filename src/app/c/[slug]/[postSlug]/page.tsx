@@ -1,24 +1,55 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
+import { formatText } from "@/lib/format-text";
 import {
   createComment,
   deleteComment,
   deletePost,
+  toggleReaction,
   togglePostLock,
   togglePostPin,
+  updateComment,
 } from "@/lib/actions/posts";
+
+const COMMENTS_PER_PAGE = 20;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; postSlug: string }>;
+}): Promise<Metadata> {
+  const { slug, postSlug } = await params;
+  const supabase = await createClient();
+  const { data: category } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("slug", slug)
+    .single();
+
+  const { data: post } = category
+    ? await supabase
+        .from("posts")
+        .select("title")
+        .eq("category_id", category.id)
+        .eq("slug", postSlug)
+        .single()
+    : { data: null };
+
+  return { title: post?.title ?? "Post" };
+}
 
 export default async function PostPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string; postSlug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; editComment?: string; commentsPage?: string }>;
 }) {
   const { slug, postSlug } = await params;
-  const { error } = await searchParams;
+  const { error, editComment, commentsPage } = await searchParams;
   const supabase = await createClient();
   const profile = await getCurrentProfile();
 
@@ -35,7 +66,7 @@ export default async function PostPage({
   const { data: post } = await supabase
     .from("posts")
     .select(
-      "id, title, body, is_pinned, is_locked, is_deleted, created_at, profiles(display_name)",
+      "id, title, body, author_id, is_pinned, is_locked, is_deleted, created_at, profiles(username, display_name)",
     )
     .eq("category_id", category.id)
     .eq("slug", postSlug)
@@ -45,14 +76,38 @@ export default async function PostPage({
     notFound();
   }
 
-  const { data: comments } = await supabase
+  const page = Math.max(1, Number(commentsPage) || 1);
+  const from = (page - 1) * COMMENTS_PER_PAGE;
+  const to = from + COMMENTS_PER_PAGE - 1;
+
+  const { data: comments, count: commentCount } = await supabase
     .from("comments")
-    .select("id, body, created_at, is_deleted, profiles(display_name)")
+    .select("id, body, author_id, created_at, is_deleted, profiles(username, display_name)", {
+      count: "exact",
+    })
     .eq("post_id", post.id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .range(from, to);
 
   const visibleComments = comments?.filter((comment) => !comment.is_deleted) ?? [];
+  const totalPages = Math.max(1, Math.ceil((commentCount ?? 0) / COMMENTS_PER_PAGE));
+
+  const { data: postReactions } = await supabase
+    .from("reactions")
+    .select("user_id")
+    .eq("post_id", post.id);
+  const postReactionCount = postReactions?.length ?? 0;
+  const hasReactedToPost = profile
+    ? (postReactions?.some((r) => r.user_id === profile.id) ?? false)
+    : false;
+
+  const commentIds = visibleComments.map((c) => c.id);
+  const { data: commentReactions } = commentIds.length
+    ? await supabase.from("reactions").select("comment_id, user_id").in("comment_id", commentIds)
+    : { data: [] as { comment_id: string | null; user_id: string }[] };
+
   const isModerator = profile?.role === "admin" || profile?.role === "owner";
+  const canEditPost = profile?.id === post.author_id || isModerator;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-12">
@@ -77,96 +132,263 @@ export default async function PostPage({
             {post.is_pinned && "📌 "}
             {post.title}
           </h1>
-          {isModerator && (
-            <div className="flex shrink-0 gap-3 text-xs">
-              <form
-                action={togglePostPin.bind(
-                  null,
-                  slug,
-                  postSlug,
-                  post.id,
-                  post.is_pinned,
-                )}
+          <div className="flex shrink-0 gap-3 text-xs">
+            {canEditPost && (
+              <Link
+                href={`/c/${slug}/${postSlug}/edit`}
+                className="text-charcoal-400 hover:text-charcoal-200"
               >
-                <button
-                  type="submit"
-                  className="text-charcoal-400 hover:text-gold-400"
-                >
-                  {post.is_pinned ? "Unpin" : "Pin"}
-                </button>
-              </form>
-              <form
-                action={togglePostLock.bind(
-                  null,
-                  slug,
-                  postSlug,
-                  post.id,
-                  post.is_locked,
-                )}
+                Edit
+              </Link>
+            )}
+            {profile && (
+              <Link
+                href={`/report?postId=${post.id}`}
+                className="text-charcoal-400 hover:text-charcoal-200"
               >
-                <button
-                  type="submit"
-                  className="text-charcoal-400 hover:text-charcoal-200"
+                Report
+              </Link>
+            )}
+            {isModerator && (
+              <>
+                <form
+                  action={togglePostPin.bind(
+                    null,
+                    slug,
+                    postSlug,
+                    post.id,
+                    post.is_pinned,
+                  )}
                 >
-                  {post.is_locked ? "Unlock" : "Lock"}
-                </button>
-              </form>
-              <form action={deletePost.bind(null, slug, post.id)}>
-                <button
-                  type="submit"
-                  className="text-danger-400 hover:text-danger-500"
+                  <button
+                    type="submit"
+                    className="text-charcoal-400 hover:text-gold-400"
+                  >
+                    {post.is_pinned ? "Unpin" : "Pin"}
+                  </button>
+                </form>
+                <form
+                  action={togglePostLock.bind(
+                    null,
+                    slug,
+                    postSlug,
+                    post.id,
+                    post.is_locked,
+                  )}
                 >
-                  Delete
-                </button>
-              </form>
-            </div>
-          )}
+                  <button
+                    type="submit"
+                    className="text-charcoal-400 hover:text-charcoal-200"
+                  >
+                    {post.is_locked ? "Unlock" : "Lock"}
+                  </button>
+                </form>
+                <form action={deletePost.bind(null, slug, post.id)}>
+                  <button
+                    type="submit"
+                    className="text-danger-400 hover:text-danger-500"
+                  >
+                    Delete
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
         </div>
         <p className="text-sm text-charcoal-400">
-          by {post.profiles?.display_name ?? "Unknown"} &middot;{" "}
-          {new Date(post.created_at).toLocaleString()}
+          by{" "}
+          {post.profiles?.username ? (
+            <Link
+              href={`/u/${post.profiles.username}`}
+              className="hover:text-charcoal-200"
+            >
+              {post.profiles.display_name}
+            </Link>
+          ) : (
+            "Unknown"
+          )}{" "}
+          &middot; {new Date(post.created_at).toLocaleString()}
           {post.is_locked && (
             <span className="ml-2 uppercase text-charcoal-500">locked</span>
           )}
         </p>
-        <p className="whitespace-pre-wrap text-charcoal-200">{post.body}</p>
+        <p className="whitespace-pre-wrap text-charcoal-200">
+          {formatText(post.body)}
+        </p>
+        <form
+          action={toggleReaction.bind(
+            null,
+            slug,
+            postSlug,
+            post.id,
+            null,
+            hasReactedToPost,
+          )}
+        >
+          <button
+            type="submit"
+            className={`w-fit rounded border px-2 py-1 text-xs ${
+              hasReactedToPost
+                ? "border-green-600 text-green-400"
+                : "border-charcoal-600 text-charcoal-400 hover:text-charcoal-200"
+            }`}
+          >
+            👍 {postReactionCount}
+          </button>
+        </form>
       </article>
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-charcoal-200">
-          Comments ({visibleComments.length})
+          Comments ({commentCount ?? 0})
         </h2>
 
         <ul className="flex flex-col gap-3">
-          {visibleComments.map((comment) => (
-            <li
-              key={comment.id}
-              className="rounded border border-charcoal-700 bg-charcoal-900 p-3"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-charcoal-400">
-                  {comment.profiles?.display_name ?? "Unknown"} &middot;{" "}
-                  {new Date(comment.created_at).toLocaleString()}
-                </p>
-                {isModerator && (
+          {visibleComments.map((comment) => {
+            const reactionsForComment = commentReactions?.filter(
+              (r) => r.comment_id === comment.id,
+            );
+            const reactionCount = reactionsForComment?.length ?? 0;
+            const hasReacted = profile
+              ? (reactionsForComment?.some((r) => r.user_id === profile.id) ?? false)
+              : false;
+            const canEditComment = profile?.id === comment.author_id || isModerator;
+            const isEditingThis = editComment === comment.id;
+
+            return (
+              <li
+                key={comment.id}
+                className="rounded border border-charcoal-700 bg-charcoal-900 p-3"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-charcoal-400">
+                    {comment.profiles?.username ? (
+                      <Link
+                        href={`/u/${comment.profiles.username}`}
+                        className="hover:text-charcoal-200"
+                      >
+                        {comment.profiles.display_name}
+                      </Link>
+                    ) : (
+                      "Unknown"
+                    )}{" "}
+                    &middot; {new Date(comment.created_at).toLocaleString()}
+                  </p>
+                  <div className="flex gap-2 text-xs">
+                    {canEditComment && !isEditingThis && (
+                      <Link
+                        href={`/c/${slug}/${postSlug}?editComment=${comment.id}#comment-${comment.id}`}
+                        className="text-charcoal-400 hover:text-charcoal-200"
+                      >
+                        Edit
+                      </Link>
+                    )}
+                    {profile && (
+                      <Link
+                        href={`/report?commentId=${comment.id}`}
+                        className="text-charcoal-400 hover:text-charcoal-200"
+                      >
+                        Report
+                      </Link>
+                    )}
+                    {isModerator && (
+                      <form
+                        action={deleteComment.bind(null, slug, postSlug, comment.id)}
+                      >
+                        <button
+                          type="submit"
+                          className="text-danger-400 hover:text-danger-500"
+                        >
+                          Delete
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+
+                {isEditingThis ? (
                   <form
-                    action={deleteComment.bind(null, slug, postSlug, comment.id)}
+                    action={updateComment.bind(null, slug, postSlug, comment.id)}
+                    className="mt-2 flex flex-col gap-2"
                   >
-                    <button
-                      type="submit"
-                      className="text-xs text-danger-400 hover:text-danger-500"
-                    >
-                      Delete
-                    </button>
+                    <textarea
+                      name="body"
+                      required
+                      rows={3}
+                      defaultValue={comment.body}
+                      className="rounded border border-charcoal-600 bg-charcoal-950 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        className="rounded bg-green-700 px-3 py-1 text-xs font-medium text-white hover:bg-green-600"
+                      >
+                        Save
+                      </button>
+                      <Link
+                        href={`/c/${slug}/${postSlug}`}
+                        className="rounded border border-charcoal-600 px-3 py-1 text-xs text-charcoal-300 hover:text-charcoal-100"
+                      >
+                        Cancel
+                      </Link>
+                    </div>
                   </form>
+                ) : (
+                  <p className="whitespace-pre-wrap text-charcoal-200">
+                    {formatText(comment.body)}
+                  </p>
                 )}
-              </div>
-              <p className="whitespace-pre-wrap text-charcoal-200">
-                {comment.body}
-              </p>
-            </li>
-          ))}
+
+                <form
+                  action={toggleReaction.bind(
+                    null,
+                    slug,
+                    postSlug,
+                    null,
+                    comment.id,
+                    hasReacted,
+                  )}
+                  className="mt-2"
+                >
+                  <button
+                    type="submit"
+                    className={`w-fit rounded border px-2 py-0.5 text-xs ${
+                      hasReacted
+                        ? "border-green-600 text-green-400"
+                        : "border-charcoal-600 text-charcoal-400 hover:text-charcoal-200"
+                    }`}
+                  >
+                    👍 {reactionCount}
+                  </button>
+                </form>
+              </li>
+            );
+          })}
         </ul>
+
+        {totalPages > 1 && (
+          <div className="flex items-center gap-4 text-sm text-charcoal-400">
+            {page > 1 && (
+              <Link
+                href={`/c/${slug}/${postSlug}?commentsPage=${page - 1}`}
+                className="hover:text-charcoal-200"
+              >
+                &larr; Previous
+              </Link>
+            )}
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            {page < totalPages && (
+              <Link
+                href={`/c/${slug}/${postSlug}?commentsPage=${page + 1}`}
+                className="hover:text-charcoal-200"
+              >
+                Next &rarr;
+              </Link>
+            )}
+          </div>
+        )}
 
         {profile ? (
           post.is_locked ? (
