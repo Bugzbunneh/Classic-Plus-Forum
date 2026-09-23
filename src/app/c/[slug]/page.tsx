@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
+import { Avatar } from "@/components/avatar";
 
 const POSTS_PER_PAGE = 20;
 
@@ -54,7 +55,7 @@ export default async function CategoryPage({
   const { data: posts, count } = await supabase
     .from("posts")
     .select(
-      "id, title, slug, is_pinned, is_locked, created_at, profiles(username, display_name)",
+      "id, title, slug, is_pinned, is_locked, created_at, profiles(username, display_name, avatar_url)",
       { count: "exact" },
     )
     .eq("category_id", category.id)
@@ -105,20 +106,27 @@ export default async function CategoryPage({
                   </span>
                 )}
               </Link>
-              <p className="text-sm text-charcoal-400">
-                by{" "}
-                {post.profiles?.username ? (
-                  <Link
-                    href={`/u/${post.profiles.username}`}
-                    className="hover:text-charcoal-200"
-                  >
-                    {post.profiles.display_name}
-                  </Link>
-                ) : (
-                  "Unknown"
-                )}{" "}
-                &middot; {new Date(post.created_at).toLocaleDateString()}
-              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <Avatar
+                  url={post.profiles?.avatar_url}
+                  name={post.profiles?.display_name ?? "?"}
+                  size={20}
+                />
+                <p className="text-sm text-charcoal-400">
+                  by{" "}
+                  {post.profiles?.username ? (
+                    <Link
+                      href={`/u/${post.profiles.username}`}
+                      className="hover:text-charcoal-200"
+                    >
+                      {post.profiles.display_name}
+                    </Link>
+                  ) : (
+                    "Unknown"
+                  )}{" "}
+                  &middot; {new Date(post.created_at).toLocaleDateString()}
+                </p>
+              </div>
             </li>
           ))
         ) : (

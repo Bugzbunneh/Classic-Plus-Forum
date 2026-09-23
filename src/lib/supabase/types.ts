@@ -84,6 +84,7 @@ export type Database = {
           created_at: string
           edited_at: string | null
           id: string
+          image_url: string | null
           is_deleted: boolean
           post_id: string
         }
@@ -93,6 +94,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          image_url?: string | null
           is_deleted?: boolean
           post_id: string
         }
@@ -102,6 +104,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          image_url?: string | null
           is_deleted?: boolean
           post_id?: string
         }
@@ -230,6 +233,7 @@ export type Database = {
           created_at: string
           edited_at: string | null
           id: string
+          image_url: string | null
           is_deleted: boolean
           is_locked: boolean
           is_pinned: boolean
@@ -244,6 +248,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          image_url?: string | null
           is_deleted?: boolean
           is_locked?: boolean
           is_pinned?: boolean
@@ -258,6 +263,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          image_url?: string | null
           is_deleted?: boolean
           is_locked?: boolean
           is_pinned?: boolean

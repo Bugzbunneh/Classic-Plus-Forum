@@ -125,6 +125,29 @@ The owner can change anyone's role from there; admins and the owner can ban/unba
 actions (`src/lib/actions/members.ts`) rely on the database's RLS policies and triggers as the
 actual enforcement — the UI only decides what to show, not what's allowed.
 
+### Switching roles locally for testing
+
+```bash
+pnpm role:set                                   # TEST_USERNAME + TEST_ROLE from .env.local
+pnpm role:set <member|admin|owner>              # TEST_USERNAME, role overridden
+pnpm role:set <username> <member|admin|owner>   # both overridden
+```
+
+Change `TEST_ROLE` in `.env.local` and re-run `pnpm role:set` with no arguments as the fastest
+way to flip your own account between roles.
+
+There's also a second, permanent test account (role `member`, credentials in
+`TEST_MEMBER_EMAIL`/`TEST_MEMBER_PASSWORD` in `.env.local`) for logging in as a plain member in
+a separate browser/incognito window alongside your own account, to see both views at once
+without needing to flip roles back and forth.
+
+Since role changes are only possible via a direct `postgres` connection (see above), this
+script (`scripts/set-role.mjs`) *is* that direct connection — it talks straight to Postgres
+through the same pooler the Supabase CLI resolved during `supabase link`
+(`supabase/.temp/pooler-url`), bypassing the app and RLS entirely, the same way a migration
+does. Use it to flip your own test account between roles and see how the UI looks for each one.
+This capability must never be exposed through the running app itself.
+
 ## Theme
 
 Defined as Tailwind v4 theme tokens in [`src/app/globals.css`](src/app/globals.css) — use
@@ -157,6 +180,13 @@ than branching on `prefers-color-scheme`.
   `0017_avatar_storage.sql`). Each user can only write inside their own `<user_id>/` folder;
   uploaded avatars are publicly readable. Changing display name/bio isn't wired up yet (see
   TODO).
+- Avatars appear next to author names on category post lists, the post itself, and every
+  comment (`src/components/avatar.tsx` — falls back to a colored initial when there's no
+  avatar).
+- Posts and comments can carry one optional image attachment (`post-images` bucket —
+  `0023_post_images.sql`, same user-scoped-folder pattern as avatars). Uploaded server-side in
+  `src/lib/storage.ts`, which rejects non-image files and anything over 5MB regardless of what
+  the client's `accept="image/*"` hint would otherwise let through.
 
 ## Moderation tools
 
@@ -171,7 +201,11 @@ than branching on `prefers-color-scheme`.
 - Replying to someone's post notifies them (bell-style unread count in the header,
   `/notifications` to view and mark all read). Never notifies you of your own replies.
 - A single 👍 reaction is available on posts and comments (not a full emoji picker, to match
-  the plain oldschool-forum brief).
+  the plain oldschool-forum brief). Hovering the count shows who reacted (up to 3 names, then
+  "and N others" opens a popup listing everyone) — this is the one piece of client-side
+  JavaScript in an otherwise fully server-rendered app (`src/components/reaction-button.tsx`),
+  since a hover tooltip and a popup genuinely need client state. The actual reaction toggle
+  still works as a plain form action underneath it.
 
 ## Testing
 
@@ -192,10 +226,11 @@ than branching on `prefers-color-scheme`.
   `updateUser`), but there's no UI for it yet — anyone who forgets their password is stuck.
 - **Edit display name/bio.** Avatar upload is done (`/settings`), but there's still no way to
   change display name or bio after signup.
-- **Empty test bucket left behind.** An `e2e-test-bucket` storage bucket from testing the
-  avatar upload policies couldn't be cleaned up via a migration (Postgres blocks direct
-  `DELETE` on `storage.buckets` — "Use the Storage API instead"). It's empty and unused by the
-  app; delete it from the Supabase dashboard's Storage section whenever convenient.
+- **Small leftover test files.** An empty `e2e-test-bucket` (from testing avatar upload
+  policies) and a handful of orphaned test images under deleted test users' folders in
+  `post-images` couldn't be cleaned up via migration (Postgres blocks direct `DELETE` on
+  `storage.buckets`/objects — "Use the Storage API instead"). All harmless and unused by the
+  app; clean up from the Supabase dashboard's Storage section whenever convenient.
 
 ### Further hardening
 

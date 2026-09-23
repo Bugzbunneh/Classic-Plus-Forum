@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 import { uniqueSlug } from "@/lib/slug";
+import { uploadPostImage } from "@/lib/storage";
 
 export async function createPost(categorySlug: string, formData: FormData) {
   const profile = await getCurrentProfile();
@@ -33,6 +34,15 @@ export async function createPost(categorySlug: string, formData: FormData) {
     redirect(`/c/${categorySlug}?error=${encodeURIComponent("Category not found")}`);
   }
 
+  const { url: imageUrl, error: imageError } = await uploadPostImage(
+    supabase,
+    profile.id,
+    formData.get("image"),
+  );
+  if (imageError) {
+    redirect(`/c/${categorySlug}/new?error=${encodeURIComponent(imageError)}`);
+  }
+
   const slug = uniqueSlug(title);
 
   const { error } = await supabase.from("posts").insert({
@@ -41,6 +51,7 @@ export async function createPost(categorySlug: string, formData: FormData) {
     title,
     body,
     slug,
+    image_url: imageUrl,
   });
 
   if (error) {
@@ -72,10 +83,23 @@ export async function createComment(
   }
 
   const supabase = await createClient();
+
+  const { url: imageUrl, error: imageError } = await uploadPostImage(
+    supabase,
+    profile.id,
+    formData.get("image"),
+  );
+  if (imageError) {
+    redirect(
+      `/c/${categorySlug}/${postSlug}?error=${encodeURIComponent(imageError)}`,
+    );
+  }
+
   const { error } = await supabase.from("comments").insert({
     post_id: postId,
     author_id: profile.id,
     body,
+    image_url: imageUrl,
   });
 
   if (error) {
@@ -148,9 +172,21 @@ export async function updatePost(
   }
 
   const supabase = await createClient();
+
+  const { url: imageUrl, error: imageError } = await uploadPostImage(
+    supabase,
+    profile.id,
+    formData.get("image"),
+  );
+  if (imageError) {
+    redirect(
+      `/c/${categorySlug}/${postSlug}/edit?error=${encodeURIComponent(imageError)}`,
+    );
+  }
+
   const { error } = await supabase
     .from("posts")
-    .update({ title, body })
+    .update({ title, body, ...(imageUrl && { image_url: imageUrl }) })
     .eq("id", postId);
 
   if (error) {
@@ -180,7 +216,22 @@ export async function updateComment(
   }
 
   const supabase = await createClient();
-  await supabase.from("comments").update({ body }).eq("id", commentId);
+
+  const { url: imageUrl, error: imageError } = await uploadPostImage(
+    supabase,
+    profile.id,
+    formData.get("image"),
+  );
+  if (imageError) {
+    redirect(
+      `/c/${categorySlug}/${postSlug}?error=${encodeURIComponent(imageError)}`,
+    );
+  }
+
+  await supabase
+    .from("comments")
+    .update({ body, ...(imageUrl && { image_url: imageUrl }) })
+    .eq("id", commentId);
   revalidatePath(`/c/${categorySlug}/${postSlug}`);
 }
 

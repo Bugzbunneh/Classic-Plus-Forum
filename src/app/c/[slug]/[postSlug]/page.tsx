@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 import { formatText } from "@/lib/format-text";
+import { Avatar } from "@/components/avatar";
+import { ReactionButton } from "@/components/reaction-button";
 import {
   createComment,
   deleteComment,
@@ -66,7 +68,7 @@ export default async function PostPage({
   const { data: post } = await supabase
     .from("posts")
     .select(
-      "id, title, body, author_id, is_pinned, is_locked, is_deleted, created_at, profiles(username, display_name)",
+      "id, title, body, image_url, author_id, is_pinned, is_locked, is_deleted, created_at, profiles(username, display_name, avatar_url)",
     )
     .eq("category_id", category.id)
     .eq("slug", postSlug)
@@ -82,9 +84,10 @@ export default async function PostPage({
 
   const { data: comments, count: commentCount } = await supabase
     .from("comments")
-    .select("id, body, author_id, created_at, is_deleted, profiles(username, display_name)", {
-      count: "exact",
-    })
+    .select(
+      "id, body, image_url, author_id, created_at, is_deleted, profiles(username, display_name, avatar_url)",
+      { count: "exact" },
+    )
     .eq("post_id", post.id)
     .order("created_at", { ascending: true })
     .range(from, to);
@@ -94,17 +97,27 @@ export default async function PostPage({
 
   const { data: postReactions } = await supabase
     .from("reactions")
-    .select("user_id")
+    .select("user_id, profiles(display_name)")
     .eq("post_id", post.id);
   const postReactionCount = postReactions?.length ?? 0;
+  const postReactorNames = postReactions?.map((r) => r.profiles?.display_name ?? "Unknown") ?? [];
   const hasReactedToPost = profile
     ? (postReactions?.some((r) => r.user_id === profile.id) ?? false)
     : false;
 
   const commentIds = visibleComments.map((c) => c.id);
   const { data: commentReactions } = commentIds.length
-    ? await supabase.from("reactions").select("comment_id, user_id").in("comment_id", commentIds)
-    : { data: [] as { comment_id: string | null; user_id: string }[] };
+    ? await supabase
+        .from("reactions")
+        .select("comment_id, user_id, profiles(display_name)")
+        .in("comment_id", commentIds)
+    : {
+        data: [] as {
+          comment_id: string | null;
+          user_id: string;
+          profiles: { display_name: string } | null;
+        }[],
+      };
 
   const isModerator = profile?.role === "admin" || profile?.role === "owner";
   const canEditPost = profile?.id === post.author_id || isModerator;
@@ -195,47 +208,47 @@ export default async function PostPage({
             )}
           </div>
         </div>
-        <p className="text-sm text-charcoal-400">
-          by{" "}
-          {post.profiles?.username ? (
-            <Link
-              href={`/u/${post.profiles.username}`}
-              className="hover:text-charcoal-200"
-            >
-              {post.profiles.display_name}
-            </Link>
-          ) : (
-            "Unknown"
-          )}{" "}
-          &middot; {new Date(post.created_at).toLocaleString()}
-          {post.is_locked && (
-            <span className="ml-2 uppercase text-charcoal-500">locked</span>
-          )}
-        </p>
+        <div className="flex items-center gap-2 text-sm text-charcoal-400">
+          <Avatar
+            url={post.profiles?.avatar_url}
+            name={post.profiles?.display_name ?? "?"}
+            size={24}
+          />
+          <p>
+            by{" "}
+            {post.profiles?.username ? (
+              <Link
+                href={`/u/${post.profiles.username}`}
+                className="hover:text-charcoal-200"
+              >
+                {post.profiles.display_name}
+              </Link>
+            ) : (
+              "Unknown"
+            )}{" "}
+            &middot; {new Date(post.created_at).toLocaleString()}
+            {post.is_locked && (
+              <span className="ml-2 uppercase text-charcoal-500">locked</span>
+            )}
+          </p>
+        </div>
         <p className="whitespace-pre-wrap text-charcoal-200">
           {formatText(post.body)}
         </p>
-        <form
-          action={toggleReaction.bind(
-            null,
-            slug,
-            postSlug,
-            post.id,
-            null,
-            hasReactedToPost,
-          )}
-        >
-          <button
-            type="submit"
-            className={`w-fit rounded border px-2 py-1 text-xs ${
-              hasReactedToPost
-                ? "border-green-600 text-green-400"
-                : "border-charcoal-600 text-charcoal-400 hover:text-charcoal-200"
-            }`}
-          >
-            👍 {postReactionCount}
-          </button>
-        </form>
+        {post.image_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={post.image_url}
+            alt=""
+            className="max-h-96 w-fit max-w-full rounded border border-charcoal-700 object-contain"
+          />
+        )}
+        <ReactionButton
+          action={toggleReaction.bind(null, slug, postSlug, post.id, null, hasReactedToPost)}
+          count={postReactionCount}
+          hasReacted={hasReactedToPost}
+          reactorNames={postReactorNames}
+        />
       </article>
 
       <section className="flex flex-col gap-4">
@@ -261,19 +274,26 @@ export default async function PostPage({
                 className="rounded border border-charcoal-700 bg-charcoal-900 p-3"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-charcoal-400">
-                    {comment.profiles?.username ? (
-                      <Link
-                        href={`/u/${comment.profiles.username}`}
-                        className="hover:text-charcoal-200"
-                      >
-                        {comment.profiles.display_name}
-                      </Link>
-                    ) : (
-                      "Unknown"
-                    )}{" "}
-                    &middot; {new Date(comment.created_at).toLocaleString()}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Avatar
+                      url={comment.profiles?.avatar_url}
+                      name={comment.profiles?.display_name ?? "?"}
+                      size={24}
+                    />
+                    <p className="text-sm text-charcoal-400">
+                      {comment.profiles?.username ? (
+                        <Link
+                          href={`/u/${comment.profiles.username}`}
+                          className="hover:text-charcoal-200"
+                        >
+                          {comment.profiles.display_name}
+                        </Link>
+                      ) : (
+                        "Unknown"
+                      )}{" "}
+                      &middot; {new Date(comment.created_at).toLocaleString()}
+                    </p>
+                  </div>
                   <div className="flex gap-2 text-xs">
                     {canEditComment && !isEditingThis && (
                       <Link
@@ -309,6 +329,7 @@ export default async function PostPage({
                 {isEditingThis ? (
                   <form
                     action={updateComment.bind(null, slug, postSlug, comment.id)}
+                    encType="multipart/form-data"
                     className="mt-2 flex flex-col gap-2"
                   >
                     <textarea
@@ -317,6 +338,20 @@ export default async function PostPage({
                       rows={3}
                       defaultValue={comment.body}
                       className="rounded border border-charcoal-600 bg-charcoal-950 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+                    />
+                    {comment.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={comment.image_url}
+                        alt=""
+                        className="max-h-32 w-fit rounded border border-charcoal-700 object-cover"
+                      />
+                    )}
+                    <input
+                      name="image"
+                      type="file"
+                      accept="image/*"
+                      className="text-xs text-charcoal-300"
                     />
                     <div className="flex gap-2">
                       <button
@@ -334,33 +369,38 @@ export default async function PostPage({
                     </div>
                   </form>
                 ) : (
-                  <p className="whitespace-pre-wrap text-charcoal-200">
-                    {formatText(comment.body)}
-                  </p>
+                  <>
+                    <p className="whitespace-pre-wrap text-charcoal-200">
+                      {formatText(comment.body)}
+                    </p>
+                    {comment.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={comment.image_url}
+                        alt=""
+                        className="mt-2 max-h-64 w-fit max-w-full rounded border border-charcoal-700 object-contain"
+                      />
+                    )}
+                  </>
                 )}
 
-                <form
-                  action={toggleReaction.bind(
-                    null,
-                    slug,
-                    postSlug,
-                    null,
-                    comment.id,
-                    hasReacted,
-                  )}
-                  className="mt-2"
-                >
-                  <button
-                    type="submit"
-                    className={`w-fit rounded border px-2 py-0.5 text-xs ${
-                      hasReacted
-                        ? "border-green-600 text-green-400"
-                        : "border-charcoal-600 text-charcoal-400 hover:text-charcoal-200"
-                    }`}
-                  >
-                    👍 {reactionCount}
-                  </button>
-                </form>
+                <div className="mt-2">
+                  <ReactionButton
+                    action={toggleReaction.bind(
+                      null,
+                      slug,
+                      postSlug,
+                      null,
+                      comment.id,
+                      hasReacted,
+                    )}
+                    count={reactionCount}
+                    hasReacted={hasReacted}
+                    reactorNames={
+                      reactionsForComment?.map((r) => r.profiles?.display_name ?? "Unknown") ?? []
+                    }
+                  />
+                </div>
               </li>
             );
           })}
@@ -396,6 +436,7 @@ export default async function PostPage({
           ) : (
             <form
               action={createComment.bind(null, slug, postSlug, post.id)}
+              encType="multipart/form-data"
               className="flex flex-col gap-2"
             >
               <textarea
@@ -404,6 +445,12 @@ export default async function PostPage({
                 rows={4}
                 placeholder="Write a reply..."
                 className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+              />
+              <input
+                name="image"
+                type="file"
+                accept="image/*"
+                className="text-sm text-charcoal-300"
               />
               <button
                 type="submit"

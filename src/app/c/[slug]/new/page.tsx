@@ -29,6 +29,7 @@ export default async function NewPostPage({
 
       <form
         action={createPost.bind(null, slug)}
+        encType="multipart/form-data"
         className="flex flex-col gap-4"
       >
         <div className="flex flex-col gap-1">
@@ -52,6 +53,18 @@ export default async function NewPostPage({
             required
             rows={8}
             className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="image" className="text-sm text-charcoal-300">
+            Image (optional)
+          </label>
+          <input
+            id="image"
+            name="image"
+            type="file"
+            accept="image/*"
+            className="text-sm text-charcoal-300"
           />
         </div>
         <button

@@ -31,7 +31,7 @@ export default async function EditPostPage({
 
   const { data: post } = await supabase
     .from("posts")
-    .select("id, title, body, author_id, is_deleted")
+    .select("id, title, body, image_url, author_id, is_deleted")
     .eq("category_id", category.id)
     .eq("slug", postSlug)
     .single();
@@ -57,6 +57,7 @@ export default async function EditPostPage({
 
       <form
         action={updatePost.bind(null, slug, postSlug, post.id)}
+        encType="multipart/form-data"
         className="flex flex-col gap-4"
       >
         <div className="flex flex-col gap-1">
@@ -82,6 +83,26 @@ export default async function EditPostPage({
             rows={8}
             defaultValue={post.body}
             className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="image" className="text-sm text-charcoal-300">
+            {post.image_url ? "Replace image" : "Image (optional)"}
+          </label>
+          {post.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.image_url}
+              alt=""
+              className="max-h-40 w-fit rounded border border-charcoal-700 object-cover"
+            />
+          )}
+          <input
+            id="image"
+            name="image"
+            type="file"
+            accept="image/*"
+            className="text-sm text-charcoal-300"
           />
         </div>
         <button
