@@ -78,4 +78,23 @@ pnpm dev
 Open [http://localhost:3000](http://localhost:3000) to view it.
 
 You'll need a Supabase project for the database and auth. Copy `.env.example` to `.env.local`
-once it exists and fill in your Supabase project URL and anon key.
+and fill in your Supabase project URL and anon key.
+
+## Authentication
+
+Email/password and Discord OAuth, both via Supabase Auth (`src/lib/actions/auth.ts`). A new
+signup creates a `profiles` row automatically (via a database trigger) with the default
+`member` role.
+
+## TODO
+
+- **Enable Discord OAuth in Supabase.** The sign-in/sign-up buttons call
+  `supabase.auth.signInWithOAuth({ provider: 'discord' })`, but this won't work until Discord
+  is set up as a provider:
+  1. Create an application at <https://discord.com/developers/applications>.
+  2. Add redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`.
+  3. Copy the Client ID and Client Secret into Supabase dashboard → Authentication →
+     Sign In / Providers → Discord.
+  - Email/password auth works today without this step.
+- Category → post → comment pages (clicking a category on the homepage currently 404s).
+- Apply the Warcraft charcoal/green theme (currently default Tailwind styling).
