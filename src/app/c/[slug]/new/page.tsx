@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createPost } from "@/lib/actions/posts";
 import { getCurrentProfile } from "@/lib/dal";
+import { Composer } from "@/components/composer";
 
 export default async function NewPostPage({
   params,
@@ -47,25 +48,7 @@ export default async function NewPostPage({
           <label htmlFor="body" className="text-sm text-charcoal-300">
             Message
           </label>
-          <textarea
-            id="body"
-            name="body"
-            required
-            rows={8}
-            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="image" className="text-sm text-charcoal-300">
-            Image (optional)
-          </label>
-          <input
-            id="image"
-            name="image"
-            type="file"
-            accept="image/*"
-            className="text-sm text-charcoal-300"
-          />
+          <Composer id="body" required rows={8} />
         </div>
         <button
           type="submit"

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 import { updatePost } from "@/lib/actions/posts";
+import { Composer } from "@/components/composer";
 
 export default async function EditPostPage({
   params,
@@ -76,33 +77,12 @@ export default async function EditPostPage({
           <label htmlFor="body" className="text-sm text-charcoal-300">
             Message
           </label>
-          <textarea
+          <Composer
             id="body"
-            name="body"
+            defaultValue={post.body}
+            existingImageUrl={post.image_url}
             required
             rows={8}
-            defaultValue={post.body}
-            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="image" className="text-sm text-charcoal-300">
-            {post.image_url ? "Replace image" : "Image (optional)"}
-          </label>
-          {post.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={post.image_url}
-              alt=""
-              className="max-h-40 w-fit rounded border border-charcoal-700 object-cover"
-            />
-          )}
-          <input
-            id="image"
-            name="image"
-            type="file"
-            accept="image/*"
-            className="text-sm text-charcoal-300"
           />
         </div>
         <button

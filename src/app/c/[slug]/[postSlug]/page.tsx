@@ -4,8 +4,9 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 import { formatText } from "@/lib/format-text";
-import { Avatar } from "@/components/avatar";
+import { AuthorBox } from "@/components/author-box";
 import { ReactionButton } from "@/components/reaction-button";
+import { Composer } from "@/components/composer";
 import {
   createComment,
   deleteComment,
@@ -68,7 +69,7 @@ export default async function PostPage({
   const { data: post } = await supabase
     .from("posts")
     .select(
-      "id, title, body, image_url, author_id, is_pinned, is_locked, is_deleted, created_at, profiles(username, display_name, avatar_url)",
+      "id, title, body, image_url, author_id, is_pinned, is_locked, is_deleted, created_at, profiles(username, display_name, avatar_url, role)",
     )
     .eq("category_id", category.id)
     .eq("slug", postSlug)
@@ -85,7 +86,7 @@ export default async function PostPage({
   const { data: comments, count: commentCount } = await supabase
     .from("comments")
     .select(
-      "id, body, image_url, author_id, created_at, is_deleted, profiles(username, display_name, avatar_url)",
+      "id, body, image_url, author_id, created_at, is_deleted, profiles(username, display_name, avatar_url, role)",
       { count: "exact" },
     )
     .eq("post_id", post.id)
@@ -94,6 +95,30 @@ export default async function PostPage({
 
   const visibleComments = comments?.filter((comment) => !comment.is_deleted) ?? [];
   const totalPages = Math.max(1, Math.ceil((commentCount ?? 0) / COMMENTS_PER_PAGE));
+
+  // Total posts + comments per author shown on this page, for the accolade
+  // in each author box. Batched into two queries rather than one per author.
+  const authorIds = Array.from(
+    new Set([post.author_id, ...visibleComments.map((c) => c.author_id)]),
+  );
+  const { data: authorPostRows } = await supabase
+    .from("posts")
+    .select("author_id")
+    .eq("is_deleted", false)
+    .in("author_id", authorIds);
+  const { data: authorCommentRows } = await supabase
+    .from("comments")
+    .select("author_id")
+    .eq("is_deleted", false)
+    .in("author_id", authorIds);
+
+  const authorActivityCount = new Map<string, number>();
+  authorPostRows?.forEach(({ author_id }) => {
+    authorActivityCount.set(author_id, (authorActivityCount.get(author_id) ?? 0) + 1);
+  });
+  authorCommentRows?.forEach(({ author_id }) => {
+    authorActivityCount.set(author_id, (authorActivityCount.get(author_id) ?? 0) + 1);
+  });
 
   const { data: postReactions } = await supabase
     .from("reactions")
@@ -137,118 +162,111 @@ export default async function PostPage({
         </p>
       )}
 
-      <article className="flex flex-col gap-2 rounded border border-charcoal-700 bg-charcoal-900 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <h1
-            className={`text-xl font-semibold ${post.is_pinned ? "text-gold-400" : "text-charcoal-200"}`}
-          >
-            {post.is_pinned && "📌 "}
-            {post.title}
-          </h1>
-          <div className="flex shrink-0 gap-3 text-xs">
-            {canEditPost && (
-              <Link
-                href={`/c/${slug}/${postSlug}/edit`}
-                className="text-charcoal-400 hover:text-charcoal-200"
-              >
-                Edit
-              </Link>
-            )}
-            {profile && (
-              <Link
-                href={`/report?postId=${post.id}`}
-                className="text-charcoal-400 hover:text-charcoal-200"
-              >
-                Report
-              </Link>
-            )}
-            {isModerator && (
-              <>
-                <form
-                  action={togglePostPin.bind(
-                    null,
-                    slug,
-                    postSlug,
-                    post.id,
-                    post.is_pinned,
-                  )}
+      <article className="flex flex-col gap-4 rounded border border-charcoal-700 bg-charcoal-900 p-4 sm:flex-row">
+        <AuthorBox
+          username={post.profiles?.username}
+          displayName={post.profiles?.display_name ?? "Unknown"}
+          avatarUrl={post.profiles?.avatar_url}
+          role={post.profiles?.role}
+          postCount={authorActivityCount.get(post.author_id) ?? 0}
+          className="sm:border-r sm:border-charcoal-700 sm:pr-4"
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex items-start justify-between gap-4">
+            <h1
+              className={`text-xl font-semibold ${post.is_pinned ? "text-gold-400" : "text-charcoal-200"}`}
+            >
+              {post.is_pinned && "📌 "}
+              {post.title}
+            </h1>
+            <div className="flex shrink-0 gap-3 text-xs">
+              {canEditPost && (
+                <Link
+                  href={`/c/${slug}/${postSlug}/edit`}
+                  className="text-charcoal-400 hover:text-charcoal-200"
                 >
-                  <button
-                    type="submit"
-                    className="text-charcoal-400 hover:text-gold-400"
-                  >
-                    {post.is_pinned ? "Unpin" : "Pin"}
-                  </button>
-                </form>
-                <form
-                  action={togglePostLock.bind(
-                    null,
-                    slug,
-                    postSlug,
-                    post.id,
-                    post.is_locked,
-                  )}
+                  Edit
+                </Link>
+              )}
+              {profile && (
+                <Link
+                  href={`/report?postId=${post.id}`}
+                  className="text-charcoal-400 hover:text-charcoal-200"
                 >
-                  <button
-                    type="submit"
-                    className="text-charcoal-400 hover:text-charcoal-200"
+                  Report
+                </Link>
+              )}
+              {isModerator && (
+                <>
+                  <form
+                    action={togglePostPin.bind(
+                      null,
+                      slug,
+                      postSlug,
+                      post.id,
+                      post.is_pinned,
+                    )}
                   >
-                    {post.is_locked ? "Unlock" : "Lock"}
-                  </button>
-                </form>
-                <form action={deletePost.bind(null, slug, post.id)}>
-                  <button
-                    type="submit"
-                    className="text-danger-400 hover:text-danger-500"
+                    <button
+                      type="submit"
+                      className="text-charcoal-400 hover:text-gold-400"
+                    >
+                      {post.is_pinned ? "Unpin" : "Pin"}
+                    </button>
+                  </form>
+                  <form
+                    action={togglePostLock.bind(
+                      null,
+                      slug,
+                      postSlug,
+                      post.id,
+                      post.is_locked,
+                    )}
                   >
-                    Delete
-                  </button>
-                </form>
-              </>
-            )}
+                    <button
+                      type="submit"
+                      className="text-charcoal-400 hover:text-charcoal-200"
+                    >
+                      {post.is_locked ? "Unlock" : "Lock"}
+                    </button>
+                  </form>
+                  <form action={deletePost.bind(null, slug, post.id)}>
+                    <button
+                      type="submit"
+                      className="text-danger-400 hover:text-danger-500"
+                    >
+                      Delete
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-charcoal-400">
-          <Avatar
-            url={post.profiles?.avatar_url}
-            name={post.profiles?.display_name ?? "?"}
-            size={24}
-          />
-          <p>
-            by{" "}
-            {post.profiles?.username ? (
-              <Link
-                href={`/u/${post.profiles.username}`}
-                className="hover:text-charcoal-200"
-              >
-                {post.profiles.display_name}
-              </Link>
-            ) : (
-              "Unknown"
-            )}{" "}
-            &middot; {new Date(post.created_at).toLocaleString()}
+          <p className="text-sm text-charcoal-400">
+            {new Date(post.created_at).toLocaleString()}
             {post.is_locked && (
               <span className="ml-2 uppercase text-charcoal-500">locked</span>
             )}
           </p>
-        </div>
-        <p className="whitespace-pre-wrap text-charcoal-200">
-          {formatText(post.body)}
-        </p>
-        {post.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.image_url}
-            alt=""
-            className="max-h-96 w-fit max-w-full rounded border border-charcoal-700 object-contain"
+          <p className="whitespace-pre-wrap text-charcoal-200">
+            {formatText(post.body)}
+          </p>
+          {post.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={post.image_url}
+              alt=""
+              className="max-h-96 w-fit max-w-full rounded border border-charcoal-700 object-contain"
+            />
+          )}
+          <ReactionButton
+            action={toggleReaction.bind(null, slug, postSlug, post.id, null, hasReactedToPost)}
+            count={postReactionCount}
+            hasReacted={hasReactedToPost}
+            reactorNames={postReactorNames}
           />
-        )}
-        <ReactionButton
-          action={toggleReaction.bind(null, slug, postSlug, post.id, null, hasReactedToPost)}
-          count={postReactionCount}
-          hasReacted={hasReactedToPost}
-          reactorNames={postReactorNames}
-        />
+        </div>
       </article>
 
       <section className="flex flex-col gap-4">
@@ -271,120 +289,99 @@ export default async function PostPage({
             return (
               <li
                 key={comment.id}
-                className="rounded border border-charcoal-700 bg-charcoal-900 p-3"
+                className="flex flex-col gap-3 rounded border border-charcoal-700 bg-charcoal-900 p-3 sm:flex-row"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Avatar
-                      url={comment.profiles?.avatar_url}
-                      name={comment.profiles?.display_name ?? "?"}
-                      size={24}
-                    />
+                <AuthorBox
+                  username={comment.profiles?.username}
+                  displayName={comment.profiles?.display_name ?? "Unknown"}
+                  avatarUrl={comment.profiles?.avatar_url}
+                  role={comment.profiles?.role}
+                  postCount={authorActivityCount.get(comment.author_id) ?? 0}
+                  compact
+                  className="sm:border-r sm:border-charcoal-700 sm:pr-3"
+                />
+
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <div className="flex items-center justify-between">
                     <p className="text-sm text-charcoal-400">
-                      {comment.profiles?.username ? (
-                        <Link
-                          href={`/u/${comment.profiles.username}`}
-                          className="hover:text-charcoal-200"
-                        >
-                          {comment.profiles.display_name}
-                        </Link>
-                      ) : (
-                        "Unknown"
-                      )}{" "}
-                      &middot; {new Date(comment.created_at).toLocaleString()}
+                      {new Date(comment.created_at).toLocaleString()}
                     </p>
+                    <div className="flex gap-2 text-xs">
+                      {canEditComment && !isEditingThis && (
+                        <Link
+                          href={`/c/${slug}/${postSlug}?editComment=${comment.id}#comment-${comment.id}`}
+                          className="text-charcoal-400 hover:text-charcoal-200"
+                        >
+                          Edit
+                        </Link>
+                      )}
+                      {profile && (
+                        <Link
+                          href={`/report?commentId=${comment.id}`}
+                          className="text-charcoal-400 hover:text-charcoal-200"
+                        >
+                          Report
+                        </Link>
+                      )}
+                      {isModerator && (
+                        <form
+                          action={deleteComment.bind(null, slug, postSlug, comment.id)}
+                        >
+                          <button
+                            type="submit"
+                            className="text-danger-400 hover:text-danger-500"
+                          >
+                            Delete
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2 text-xs">
-                    {canEditComment && !isEditingThis && (
-                      <Link
-                        href={`/c/${slug}/${postSlug}?editComment=${comment.id}#comment-${comment.id}`}
-                        className="text-charcoal-400 hover:text-charcoal-200"
-                      >
-                        Edit
-                      </Link>
-                    )}
-                    {profile && (
-                      <Link
-                        href={`/report?commentId=${comment.id}`}
-                        className="text-charcoal-400 hover:text-charcoal-200"
-                      >
-                        Report
-                      </Link>
-                    )}
-                    {isModerator && (
-                      <form
-                        action={deleteComment.bind(null, slug, postSlug, comment.id)}
-                      >
+
+                  {isEditingThis ? (
+                    <form
+                      action={updateComment.bind(null, slug, postSlug, comment.id)}
+                      encType="multipart/form-data"
+                      className="flex flex-col gap-2"
+                    >
+                      <Composer
+                        defaultValue={comment.body}
+                        existingImageUrl={comment.image_url}
+                        required
+                        rows={3}
+                        textareaClassName="bg-charcoal-950"
+                      />
+                      <div className="flex gap-2">
                         <button
                           type="submit"
-                          className="text-danger-400 hover:text-danger-500"
+                          className="rounded bg-green-700 px-3 py-1 text-xs font-medium text-white hover:bg-green-600"
                         >
-                          Delete
+                          Save
                         </button>
-                      </form>
-                    )}
-                  </div>
-                </div>
+                        <Link
+                          href={`/c/${slug}/${postSlug}`}
+                          className="rounded border border-charcoal-600 px-3 py-1 text-xs text-charcoal-300 hover:text-charcoal-100"
+                        >
+                          Cancel
+                        </Link>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="whitespace-pre-wrap text-charcoal-200">
+                        {formatText(comment.body)}
+                      </p>
+                      {comment.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={comment.image_url}
+                          alt=""
+                          className="max-h-64 w-fit max-w-full rounded border border-charcoal-700 object-contain"
+                        />
+                      )}
+                    </>
+                  )}
 
-                {isEditingThis ? (
-                  <form
-                    action={updateComment.bind(null, slug, postSlug, comment.id)}
-                    encType="multipart/form-data"
-                    className="mt-2 flex flex-col gap-2"
-                  >
-                    <textarea
-                      name="body"
-                      required
-                      rows={3}
-                      defaultValue={comment.body}
-                      className="rounded border border-charcoal-600 bg-charcoal-950 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-                    />
-                    {comment.image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={comment.image_url}
-                        alt=""
-                        className="max-h-32 w-fit rounded border border-charcoal-700 object-cover"
-                      />
-                    )}
-                    <input
-                      name="image"
-                      type="file"
-                      accept="image/*"
-                      className="text-xs text-charcoal-300"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        className="rounded bg-green-700 px-3 py-1 text-xs font-medium text-white hover:bg-green-600"
-                      >
-                        Save
-                      </button>
-                      <Link
-                        href={`/c/${slug}/${postSlug}`}
-                        className="rounded border border-charcoal-600 px-3 py-1 text-xs text-charcoal-300 hover:text-charcoal-100"
-                      >
-                        Cancel
-                      </Link>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <p className="whitespace-pre-wrap text-charcoal-200">
-                      {formatText(comment.body)}
-                    </p>
-                    {comment.image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={comment.image_url}
-                        alt=""
-                        className="mt-2 max-h-64 w-fit max-w-full rounded border border-charcoal-700 object-contain"
-                      />
-                    )}
-                  </>
-                )}
-
-                <div className="mt-2">
                   <ReactionButton
                     action={toggleReaction.bind(
                       null,
@@ -439,19 +436,7 @@ export default async function PostPage({
               encType="multipart/form-data"
               className="flex flex-col gap-2"
             >
-              <textarea
-                name="body"
-                required
-                rows={4}
-                placeholder="Write a reply..."
-                className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-              />
-              <input
-                name="image"
-                type="file"
-                accept="image/*"
-                className="text-sm text-charcoal-300"
-              />
+              <Composer required placeholder="Write a reply..." />
               <button
                 type="submit"
                 className="self-start rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"

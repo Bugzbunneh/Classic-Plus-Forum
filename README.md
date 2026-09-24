@@ -174,15 +174,26 @@ than branching on `prefers-color-scheme`.
 - Post bodies and comments support a deliberately minimal `**bold**`/`*italic*` syntax
   (`src/lib/format-text.tsx`), rendered as React text nodes — never `dangerouslySetInnerHTML`,
   so there's no HTML-injection surface no matter what a user types.
+- Every post/comment textarea (new post, edit post, reply, inline comment edit) uses a shared
+  `Composer` (`src/components/composer.tsx`) — a second piece of client-side JS alongside the
+  reaction button, since an emoji picker and clipboard paste handling need client state. It
+  adds an emoji button and lets you paste an image straight from the clipboard instead of
+  only browsing for one (constructs a `DataTransfer` and assigns it to the same hidden file
+  input browsing would use, so the server actions needed no changes at all).
 - Category post lists and post comment threads are paginated (20 per page).
 - `/u/[username]` shows a member's avatar, role, join date, and recent posts.
 - `/settings` lets a signed-in user upload an avatar (Supabase Storage, `avatars` bucket —
   `0017_avatar_storage.sql`). Each user can only write inside their own `<user_id>/` folder;
   uploaded avatars are publicly readable. Changing display name/bio isn't wired up yet (see
   TODO).
-- Avatars appear next to author names on category post lists, the post itself, and every
-  comment (`src/components/avatar.tsx` — falls back to a colored initial when there's no
-  avatar).
+- Avatars appear next to author names on category post lists (`src/components/avatar.tsx` —
+  falls back to a colored initial when there's no avatar).
+- The post itself and every comment show a separate author info box (`src/components/author-box.tsx`)
+  — classic phpBB-style: avatar, name, role badge, total post+comment count, and an achievement
+  badge for activity milestones (`src/lib/achievements.ts`: 10 = Adventurer, 50 = Veteran,
+  200 = Legend). Stacks above the content on mobile, sits as a sidebar column on larger
+  screens. Counts are batched into two queries (all posts/comments by the authors shown on the
+  page) rather than one query per author.
 - Posts and comments can carry one optional image attachment (`post-images` bucket —
   `0023_post_images.sql`, same user-scoped-folder pattern as avatars). Uploaded server-side in
   `src/lib/storage.ts`, which rejects non-image files and anything over 5MB regardless of what
