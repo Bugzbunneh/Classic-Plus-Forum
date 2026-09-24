@@ -41,5 +41,32 @@ export async function uploadAvatar(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/settings?success=1");
+  redirect("/settings?success=avatar");
+}
+
+export async function updateProfile(formData: FormData) {
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    redirect("/login?next=/settings");
+  }
+
+  const displayName = (formData.get("displayName") as string).trim();
+  const bio = (formData.get("bio") as string).trim();
+
+  if (!displayName) {
+    redirect(`/settings?error=${encodeURIComponent("Display name is required")}`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ display_name: displayName, bio: bio || null })
+    .eq("id", profile.id);
+
+  if (error) {
+    redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/settings?success=profile");
 }

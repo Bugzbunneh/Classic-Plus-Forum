@@ -69,6 +69,39 @@ export async function signInWithDiscord() {
   redirect(data.url);
 }
 
+export async function requestPasswordReset(formData: FormData) {
+  const supabase = await createClient();
+  const origin = (await headers()).get("origin");
+  const email = formData.get("email") as string;
+
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`,
+  });
+
+  // Always show the same message, whether or not that email has an account -
+  // otherwise this becomes a way to check who's registered.
+  redirect("/forgot-password/check-email");
+}
+
+export async function updatePassword(formData: FormData) {
+  const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+
+  if (password !== confirmPassword) {
+    redirect(`/reset-password?error=${encodeURIComponent("Passwords don't match")}`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/settings?success=password");
+}
+
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();

@@ -118,6 +118,18 @@ Email/password and Discord OAuth, both via Supabase Auth (`src/lib/actions/auth.
 signup creates a `profiles` row automatically (via a database trigger) with the default
 `member` role.
 
+**Password reset** — `/forgot-password` calls `resetPasswordForEmail` with `redirectTo` pointed
+at the existing `/auth/callback` route (same code-exchange path OAuth already uses), landing
+the user on `/reset-password` with a live session to set a new password via `updateUser`.
+`/reset-password` doubles as a general "change password" page, linked from `/settings`, since
+the underlying call is identical either way. Note: Supabase's email sending rejects reserved
+domains like `@example.com` — the `testmember` test account can't receive a real reset email,
+so that specific email-delivery step needs a real, reachable address to test end-to-end (the
+`updateUser` mechanism itself is verified).
+
+**Profile editing** — `/settings` now also has a form for display name and bio
+(`updateProfile` in `src/lib/actions/profile.ts`); bio shows on `/u/[username]` when set.
+
 ## Role management
 
 `/admin/members` (linked from the header as "Members" for admins/owners) lists every member.
@@ -233,10 +245,6 @@ than branching on `prefers-color-scheme`.
 
 - Re-enable "Confirm email" in Supabase (Authentication → Providers → Email) — it's currently
   off, which was needed to test signup end-to-end without an email inbox.
-- **Password reset flow.** Supabase Auth supports it (`resetPasswordForEmail` +
-  `updateUser`), but there's no UI for it yet — anyone who forgets their password is stuck.
-- **Edit display name/bio.** Avatar upload is done (`/settings`), but there's still no way to
-  change display name or bio after signup.
 - **Small leftover test files.** An empty `e2e-test-bucket` (from testing avatar upload
   policies) and a handful of orphaned test images under deleted test users' folders in
   `post-images` couldn't be cleaned up via migration (Postgres blocks direct `DELETE` on

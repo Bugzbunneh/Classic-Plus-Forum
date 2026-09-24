@@ -1,9 +1,16 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentProfile } from "@/lib/dal";
-import { uploadAvatar } from "@/lib/actions/profile";
+import { updateProfile, uploadAvatar } from "@/lib/actions/profile";
 
 export const metadata: Metadata = { title: "Settings" };
+
+const SUCCESS_MESSAGES: Record<string, string> = {
+  avatar: "Avatar updated.",
+  profile: "Profile updated.",
+  password: "Password updated.",
+};
 
 export default async function SettingsPage({
   searchParams,
@@ -18,7 +25,7 @@ export default async function SettingsPage({
   const { error, success } = await searchParams;
 
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col gap-6 px-4 py-16">
+    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col gap-8 px-4 py-16">
       <h1 className="text-2xl font-semibold text-charcoal-200">Settings</h1>
 
       {error && (
@@ -26,9 +33,9 @@ export default async function SettingsPage({
           {error}
         </p>
       )}
-      {success && (
+      {success && SUCCESS_MESSAGES[success] && (
         <p className="rounded border border-green-800 bg-green-950 px-3 py-2 text-sm text-green-400">
-          Avatar updated.
+          {SUCCESS_MESSAGES[success]}
         </p>
       )}
 
@@ -66,6 +73,51 @@ export default async function SettingsPage({
             Upload
           </button>
         </form>
+      </div>
+
+      <form action={updateProfile} className="flex flex-col gap-4">
+        <span className="text-sm text-charcoal-300">Profile</span>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="displayName" className="text-sm text-charcoal-400">
+            Display name
+          </label>
+          <input
+            id="displayName"
+            name="displayName"
+            required
+            defaultValue={profile.display_name}
+            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="bio" className="text-sm text-charcoal-400">
+            Bio
+          </label>
+          <textarea
+            id="bio"
+            name="bio"
+            rows={4}
+            maxLength={500}
+            defaultValue={profile.bio ?? ""}
+            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          className="self-start rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
+        >
+          Save profile
+        </button>
+      </form>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-sm text-charcoal-300">Password</span>
+        <Link
+          href="/reset-password"
+          className="self-start rounded border border-charcoal-600 px-4 py-2 text-sm text-charcoal-300 hover:text-charcoal-100"
+        >
+          Change password
+        </Link>
       </div>
     </main>
   );

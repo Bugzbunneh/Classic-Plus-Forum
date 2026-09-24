@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 import { Avatar } from "@/components/avatar";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 
 const POSTS_PER_PAGE = 20;
 
@@ -66,6 +67,26 @@ export default async function CategoryPage({
 
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / POSTS_PER_PAGE));
 
+  const postIds = posts?.map((p) => p.id) ?? [];
+  const { data: comments } = postIds.length
+    ? await supabase
+        .from("comments")
+        .select("post_id, created_at")
+        .eq("is_deleted", false)
+        .in("post_id", postIds)
+    : { data: [] as { post_id: string | null; created_at: string }[] };
+
+  const replyCountByPost = new Map<string, number>();
+  const lastReplyAtByPost = new Map<string, string>();
+  comments?.forEach(({ post_id, created_at }) => {
+    if (!post_id) return;
+    replyCountByPost.set(post_id, (replyCountByPost.get(post_id) ?? 0) + 1);
+    const existing = lastReplyAtByPost.get(post_id);
+    if (!existing || new Date(created_at) > new Date(existing)) {
+      lastReplyAtByPost.set(post_id, created_at);
+    }
+  });
+
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-12">
       <div className="flex items-center justify-between">
@@ -91,44 +112,60 @@ export default async function CategoryPage({
 
       <ul className="flex flex-col divide-y divide-charcoal-700 rounded border border-charcoal-700 bg-charcoal-900">
         {posts?.length ? (
-          posts.map((post) => (
-            <li key={post.id} className="p-4 hover:bg-charcoal-800">
-              <Link href={`/c/${slug}/${post.slug}`} className="block">
-                <span
-                  className={`font-medium ${post.is_pinned ? "text-gold-400" : "text-green-400"}`}
-                >
-                  {post.is_pinned && "📌 "}
-                  {post.title}
-                </span>
-                {post.is_locked && (
-                  <span className="ml-2 text-xs uppercase text-charcoal-500">
-                    locked
-                  </span>
-                )}
-              </Link>
-              <div className="mt-1 flex items-center gap-2">
-                <Avatar
-                  url={post.profiles?.avatar_url}
-                  name={post.profiles?.display_name ?? "?"}
-                  size={20}
-                />
-                <p className="text-sm text-charcoal-400">
-                  by{" "}
-                  {post.profiles?.username ? (
-                    <Link
-                      href={`/u/${post.profiles.username}`}
-                      className="hover:text-charcoal-200"
+          posts.map((post) => {
+            const replyCount = replyCountByPost.get(post.id) ?? 0;
+            const lastActivityAt = lastReplyAtByPost.get(post.id) ?? post.created_at;
+
+            return (
+              <li
+                key={post.id}
+                className="flex flex-col gap-2 p-4 hover:bg-charcoal-800 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <Link href={`/c/${slug}/${post.slug}`} className="block">
+                    <span
+                      className={`font-medium ${post.is_pinned ? "text-gold-400" : "text-green-400"}`}
                     >
-                      {post.profiles.display_name}
-                    </Link>
-                  ) : (
-                    "Unknown"
-                  )}{" "}
-                  &middot; {new Date(post.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </li>
-          ))
+                      {post.is_pinned && "📌 "}
+                      {post.title}
+                    </span>
+                    {post.is_locked && (
+                      <span className="ml-2 text-xs uppercase text-charcoal-500">
+                        locked
+                      </span>
+                    )}
+                  </Link>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Avatar
+                      url={post.profiles?.avatar_url}
+                      name={post.profiles?.display_name ?? "?"}
+                      size={20}
+                    />
+                    <p className="text-sm text-charcoal-400">
+                      by{" "}
+                      {post.profiles?.username ? (
+                        <Link
+                          href={`/u/${post.profiles.username}`}
+                          className="hover:text-charcoal-200"
+                        >
+                          {post.profiles.display_name}
+                        </Link>
+                      ) : (
+                        "Unknown"
+                      )}{" "}
+                      &middot; {new Date(post.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                <span className="shrink-0 text-sm text-charcoal-400 sm:text-right">
+                  {replyCount} {replyCount === 1 ? "reply" : "replies"}
+                  <br />
+                  {formatRelativeTime(new Date(lastActivityAt))}
+                </span>
+              </li>
+            );
+          })
         ) : (
           <li className="p-4 text-sm text-charcoal-500">
             No posts yet. Be the first to start one.
