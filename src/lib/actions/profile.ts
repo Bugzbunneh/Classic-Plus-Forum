@@ -3,17 +3,15 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
+import { redirectWithError } from "@/lib/redirect-with-error";
 
 export async function uploadAvatar(formData: FormData) {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect("/login?next=/settings");
-  }
+  const profile = await requireProfile("/settings");
 
   const file = formData.get("avatar") as File | null;
   if (!file || file.size === 0) {
-    redirect(`/settings?error=${encodeURIComponent("Choose an image first")}`);
+    redirectWithError("/settings", "Choose an image first");
   }
 
   const supabase = await createClient();
@@ -23,9 +21,8 @@ export async function uploadAvatar(formData: FormData) {
   const { error: uploadError } = await supabase.storage
     .from("avatars")
     .upload(path, file, { upsert: true, contentType: file.type });
-
   if (uploadError) {
-    redirect(`/settings?error=${encodeURIComponent(uploadError.message)}`);
+    redirectWithError("/settings", uploadError.message);
   }
 
   const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(path);
@@ -35,9 +32,8 @@ export async function uploadAvatar(formData: FormData) {
     .from("profiles")
     .update({ avatar_url: avatarUrl })
     .eq("id", profile.id);
-
   if (updateError) {
-    redirect(`/settings?error=${encodeURIComponent(updateError.message)}`);
+    redirectWithError("/settings", updateError.message);
   }
 
   revalidatePath("/", "layout");
@@ -45,16 +41,12 @@ export async function uploadAvatar(formData: FormData) {
 }
 
 export async function updateProfile(formData: FormData) {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect("/login?next=/settings");
-  }
+  const profile = await requireProfile("/settings");
 
   const displayName = (formData.get("displayName") as string).trim();
   const bio = (formData.get("bio") as string).trim();
-
   if (!displayName) {
-    redirect(`/settings?error=${encodeURIComponent("Display name is required")}`);
+    redirectWithError("/settings", "Display name is required");
   }
 
   const supabase = await createClient();
@@ -62,9 +54,8 @@ export async function updateProfile(formData: FormData) {
     .from("profiles")
     .update({ display_name: displayName, bio: bio || null })
     .eq("id", profile.id);
-
   if (error) {
-    redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+    redirectWithError("/settings", error.message);
   }
 
   revalidatePath("/", "layout");

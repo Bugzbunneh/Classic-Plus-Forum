@@ -1,12 +1,8 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireModerator } from "@/lib/dal";
 
 export default async function ModerationLogPage() {
-  const profile = await getCurrentProfile();
-  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-    redirect("/");
-  }
+  await requireModerator();
 
   const supabase = await createClient();
   const { data: logs } = await supabase

@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
 import { createPost } from "@/lib/actions/posts";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
 import { Composer } from "@/components/composer";
 
 export default async function NewPostPage({
@@ -12,11 +11,7 @@ export default async function NewPostPage({
 }) {
   const { slug } = await params;
   const { error } = await searchParams;
-  const profile = await getCurrentProfile();
-
-  if (!profile) {
-    redirect(`/login?next=${encodeURIComponent(`/c/${slug}/new`)}`);
-  }
+  await requireProfile(`/c/${slug}/new`);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-12">

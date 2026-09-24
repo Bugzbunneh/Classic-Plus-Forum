@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
 import { updateProfile, uploadAvatar } from "@/lib/actions/profile";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -17,11 +16,7 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ error?: string; success?: string }>;
 }) {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect("/login?next=/settings");
-  }
-
+  const profile = await requireProfile("/settings");
   const { error, success } = await searchParams;
 
   return (

@@ -1,16 +1,11 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireModerator } from "@/lib/dal";
 import { toggleBan, updateRole } from "@/lib/actions/members";
 
 const ROLE_RANK: Record<string, number> = { owner: 0, admin: 1, member: 2 };
 
 export default async function MembersPage() {
-  const profile = await getCurrentProfile();
-
-  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-    redirect("/");
-  }
+  const profile = await requireModerator();
 
   const supabase = await createClient();
   const { data: members } = await supabase

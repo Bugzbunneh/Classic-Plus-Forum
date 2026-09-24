@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
+import { RoleBadge } from "@/components/role-badge";
 import { getMilestoneBadge } from "@/lib/achievements";
+import type { Role } from "@/lib/roles";
 
 export function AuthorBox({
   username,
@@ -14,7 +16,7 @@ export function AuthorBox({
   username: string | null | undefined;
   displayName: string;
   avatarUrl: string | null | undefined;
-  role: "member" | "admin" | "owner" | null | undefined;
+  role: Role | null | undefined;
   postCount: number;
   compact?: boolean;
   className?: string;
@@ -39,17 +41,7 @@ export function AuthorBox({
           <span className="font-medium text-charcoal-300">Unknown</span>
         )}
 
-        {role && role !== "member" && (
-          <span
-            className={`w-fit rounded px-1.5 py-0.5 text-xs font-medium uppercase sm:self-center ${
-              role === "owner"
-                ? "bg-gold-950 text-gold-400"
-                : "bg-green-950 text-green-400"
-            }`}
-          >
-            {role}
-          </span>
-        )}
+        <RoleBadge role={role} className="sm:self-center" />
 
         <span className="text-xs text-charcoal-500">
           {postCount} {postCount === 1 ? "post" : "posts"}

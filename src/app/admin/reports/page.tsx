@@ -1,14 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireModerator } from "@/lib/dal";
 import { resolveReport } from "@/lib/actions/reports";
 
 export default async function ReportsPage() {
-  const profile = await getCurrentProfile();
-  if (!profile || (profile.role !== "admin" && profile.role !== "owner")) {
-    redirect("/");
-  }
+  await requireModerator();
 
   const supabase = await createClient();
   const { data: reports } = await supabase

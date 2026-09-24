@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
 import { createReport } from "@/lib/actions/reports";
 
 export const metadata: Metadata = { title: "Report content" };
@@ -11,12 +11,8 @@ export default async function ReportPage({
   searchParams: Promise<{ postId?: string; commentId?: string; error?: string }>;
 }) {
   const { postId, commentId, error } = await searchParams;
-  const profile = await getCurrentProfile();
   const targetQuery = postId ? `postId=${postId}` : `commentId=${commentId}`;
-
-  if (!profile) {
-    redirect(`/login?next=${encodeURIComponent(`/report?${targetQuery}`)}`);
-  }
+  await requireProfile(`/report?${targetQuery}`);
 
   if (!postId && !commentId) {
     redirect("/");

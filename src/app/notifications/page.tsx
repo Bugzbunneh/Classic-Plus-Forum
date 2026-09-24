@@ -1,17 +1,13 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
 import { markAllNotificationsRead } from "@/lib/actions/notifications";
 
 export const metadata: Metadata = { title: "Notifications" };
 
 export default async function NotificationsPage() {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect("/login?next=/notifications");
-  }
+  const profile = await requireProfile("/notifications");
 
   const supabase = await createClient();
   const { data: notifications } = await supabase

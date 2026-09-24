@@ -3,31 +3,26 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
+import { redirectWithError } from "@/lib/redirect-with-error";
 
 function targetQuery(postId: string | null, commentId: string | null) {
   return postId ? `postId=${postId}` : `commentId=${commentId}`;
 }
 
 export async function createReport(formData: FormData) {
-  const profile = await getCurrentProfile();
-
   const postId = (formData.get("postId") as string) || null;
   const commentId = (formData.get("commentId") as string) || null;
   const reason = (formData.get("reason") as string).trim();
 
-  if (!profile) {
-    redirect(`/login?next=${encodeURIComponent(`/report?${targetQuery(postId, commentId)}`)}`);
-  }
+  const profile = await requireProfile(`/report?${targetQuery(postId, commentId)}`);
 
   if (!postId && !commentId) {
     redirect("/");
   }
 
   if (!reason) {
-    redirect(
-      `/report?${targetQuery(postId, commentId)}&error=${encodeURIComponent("Please describe the issue")}`,
-    );
+    redirectWithError(`/report?${targetQuery(postId, commentId)}`, "Please describe the issue");
   }
 
   const supabase = await createClient();
@@ -37,11 +32,8 @@ export async function createReport(formData: FormData) {
     comment_id: commentId,
     reason,
   });
-
   if (error) {
-    redirect(
-      `/report?${targetQuery(postId, commentId)}&error=${encodeURIComponent(error.message)}`,
-    );
+    redirectWithError(`/report?${targetQuery(postId, commentId)}`, error.message);
   }
 
   redirect("/report/thanks");

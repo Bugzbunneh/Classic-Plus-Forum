@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Role } from "@/lib/roles";
 
 export async function updateRole(userId: string, formData: FormData) {
-  const role = formData.get("role") as "member" | "admin" | "owner";
+  const role = formData.get("role") as Role;
   const supabase = await createClient();
   await supabase.from("profiles").update({ role }).eq("id", userId);
   revalidatePath("/admin/members");

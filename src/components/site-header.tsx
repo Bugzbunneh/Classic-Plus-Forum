@@ -2,10 +2,12 @@ import Link from "next/link";
 import { getCurrentProfile } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/actions/auth";
+import { isModerator } from "@/lib/roles";
+import { RoleBadge } from "@/components/role-badge";
 
 export async function SiteHeader() {
   const profile = await getCurrentProfile();
-  const isModerator = profile?.role === "admin" || profile?.role === "owner";
+  const canModerate = isModerator(profile?.role);
 
   let unreadCount = 0;
   let openReportCount = 0;
@@ -19,7 +21,7 @@ export async function SiteHeader() {
       .eq("is_read", false);
     unreadCount = count ?? 0;
 
-    if (isModerator) {
+    if (canModerate) {
       const { count: reportCount } = await supabase
         .from("reports")
         .select("*", { count: "exact", head: true })
@@ -37,7 +39,7 @@ export async function SiteHeader() {
       <nav className="flex items-center gap-4 text-sm">
         {profile ? (
           <>
-            {isModerator && (
+            {canModerate && (
               <>
                 <Link
                   href="/admin/members"
@@ -86,17 +88,7 @@ export async function SiteHeader() {
               className="flex items-center text-charcoal-300 hover:text-charcoal-100"
             >
               {profile.display_name}
-              {profile.role !== "member" && (
-                <span
-                  className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium uppercase ${
-                    profile.role === "owner"
-                      ? "bg-gold-950 text-gold-400"
-                      : "bg-green-950 text-green-400"
-                  }`}
-                >
-                  {profile.role}
-                </span>
-              )}
+              <RoleBadge role={profile.role} className="ml-2" />
             </Link>
             <form action={logout}>
               <button

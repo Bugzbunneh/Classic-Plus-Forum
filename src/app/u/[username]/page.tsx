@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { MILESTONES, milestoneUnlockText } from "@/lib/achievements";
+import { RoleBadge } from "@/components/role-badge";
 
 export async function generateMetadata({
   params,
@@ -63,17 +64,7 @@ export default async function UserProfilePage({
         <div>
           <h1 className="flex items-center text-xl font-semibold text-charcoal-200">
             {profile.display_name}
-            {profile.role !== "member" && (
-              <span
-                className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium uppercase ${
-                  profile.role === "owner"
-                    ? "bg-gold-950 text-gold-400"
-                    : "bg-green-950 text-green-400"
-                }`}
-              >
-                {profile.role}
-              </span>
-            )}
+            <RoleBadge role={profile.role} className="ml-2" />
           </h1>
           <p className="text-sm text-charcoal-400">
             Joined {new Date(profile.created_at).toLocaleDateString()}

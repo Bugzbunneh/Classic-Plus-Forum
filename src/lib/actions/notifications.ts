@@ -2,12 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
 
 export async function markAllNotificationsRead() {
-  const profile = await getCurrentProfile();
-  if (!profile) return;
-
+  const profile = await requireProfile("/notifications");
   const supabase = await createClient();
   await supabase
     .from("notifications")

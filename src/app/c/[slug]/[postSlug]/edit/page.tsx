@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
+import { getCategoryBySlug } from "@/lib/queries/categories";
+import { isModerator } from "@/lib/roles";
 import { updatePost } from "@/lib/actions/posts";
 import { Composer } from "@/components/composer";
 
@@ -13,19 +15,10 @@ export default async function EditPostPage({
 }) {
   const { slug, postSlug } = await params;
   const { error } = await searchParams;
-  const profile = await getCurrentProfile();
-
-  if (!profile) {
-    redirect(`/login?next=${encodeURIComponent(`/c/${slug}/${postSlug}/edit`)}`);
-  }
+  const profile = await requireProfile(`/c/${slug}/${postSlug}/edit`);
 
   const supabase = await createClient();
-  const { data: category } = await supabase
-    .from("categories")
-    .select("id")
-    .eq("slug", slug)
-    .single();
-
+  const category = await getCategoryBySlug(supabase, slug);
   if (!category) {
     notFound();
   }
@@ -41,8 +34,7 @@ export default async function EditPostPage({
     notFound();
   }
 
-  const isModerator = profile.role === "admin" || profile.role === "owner";
-  if (post.author_id !== profile.id && !isModerator) {
+  if (post.author_id !== profile.id && !isModerator(profile.role)) {
     redirect(`/c/${slug}/${postSlug}`);
   }
 

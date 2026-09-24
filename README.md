@@ -38,6 +38,45 @@ game-specific areas like class discussion, gameplay, and events.
 - **Backend/DB/Auth:** Supabase (hosted Postgres + Auth), with Row Level Security policies used
   to enforce role-based permissions (member/admin/owner) at the database level
 
+## Code organization
+
+A few shared pieces exist specifically to avoid repeating the same logic across pages, each
+with one clear job:
+
+- **`src/lib/dal.ts`** — `getCurrentProfile` (may be null), `requireProfile(nextPath)` (redirects
+  to `/login` if signed out), `requireModerator()` (also redirects home if signed in but not
+  admin/owner). Every page picks whichever matches whether a signed-in/moderator user is
+  optional or required, rather than each writing its own null-check-and-redirect.
+- **`src/lib/roles.ts`** — `isModerator(role)` and the `Role` type, derived from the database's
+  own generated enum rather than a hand-typed `"member" | "admin" | "owner"` repeated
+  everywhere.
+- **`src/lib/queries/`** — read-side data access, split by domain rather than one grab-bag file:
+  `categories.ts` (category lookups, homepage activity summaries), `authors.ts` (author
+  activity counts), `reactions.ts` (reaction summaries). Keeps the Supabase-shaped querying and
+  `Map`-building out of page components, which just ask for `getPostReactions(...)` and render
+  the result.
+- **`src/lib/redirect-with-error.ts`** — `redirectWithError(path, message)` for the
+  "redirect back to this page with `?error=` set" pattern every form action uses.
+- **`src/lib/pagination.ts`** — `getPageRange`/`getTotalPages`, shared by the category page's
+  posts and the post page's comments.
+- **`src/components/pagination.tsx`**, **`role-badge.tsx`** — small shared UI for patterns that
+  were previously copy-pasted with minor variations across 2-3 pages each.
+
+Server actions are split by what they act on, not bundled into one big file: `actions/posts.ts`,
+`actions/comments.ts`, `actions/reactions.ts`, `actions/profile.ts`, `actions/reports.ts`,
+`actions/members.ts`, `actions/notifications.ts`, `actions/auth.ts` - each independently
+readable without scrolling past unrelated concerns.
+
+`src/components/post/` groups the four components that only ever render within the post detail
+page - `PostArticle`, `CommentItem`, `AuthorBox`, `ReactionButton` - so that page composes them
+(both `PostArticle`/`CommentItem` take plain props, not Supabase rows) rather than inlining
+~300 lines of JSX for the post and every comment; the page itself is left doing only
+data-fetching and orchestration. Deliberately a plain feature folder under the existing
+`src/components/` tree, not Next.js's route-colocated `_components` convention - that would mean
+every import path through here carries the literal `[slug]/[postSlug]` route brackets, which is
+harder to read for no real benefit, since nothing here needs to be physically inside the route
+folder to work.
+
 ## Database schema
 
 Defined in [`supabase/migrations/0001_initial_schema.sql`](supabase/migrations/0001_initial_schema.sql),

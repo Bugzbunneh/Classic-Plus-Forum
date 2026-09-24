@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getCurrentProfile } from "@/lib/dal";
+import { requireProfile } from "@/lib/dal";
 import { updatePassword } from "@/lib/actions/auth";
 
 export const metadata: Metadata = { title: "Reset password" };
@@ -10,11 +9,7 @@ export default async function ResetPasswordPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect("/login?next=/reset-password");
-  }
-
+  await requireProfile("/reset-password");
   const { error } = await searchParams;
 
   return (

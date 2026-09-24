@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
+import { getCategoryBySlug } from "@/lib/queries/categories";
+import { getPageRange, getTotalPages } from "@/lib/pagination";
 import { Avatar } from "@/components/avatar";
+import { Pagination } from "@/components/pagination";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 
 const POSTS_PER_PAGE = 20;
@@ -15,11 +18,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data: category } = await supabase
-    .from("categories")
-    .select("name, description")
-    .eq("slug", slug)
-    .single();
+  const category = await getCategoryBySlug(supabase, slug);
 
   return {
     title: category?.name ?? "Category",
@@ -39,19 +38,12 @@ export default async function CategoryPage({
   const supabase = await createClient();
   const profile = await getCurrentProfile();
 
-  const { data: category } = await supabase
-    .from("categories")
-    .select("id, name, description")
-    .eq("slug", slug)
-    .single();
-
+  const category = await getCategoryBySlug(supabase, slug);
   if (!category) {
     notFound();
   }
 
-  const page = Math.max(1, Number(pageParam) || 1);
-  const from = (page - 1) * POSTS_PER_PAGE;
-  const to = from + POSTS_PER_PAGE - 1;
+  const { page, from, to } = getPageRange(pageParam, POSTS_PER_PAGE);
 
   const { data: posts, count } = await supabase
     .from("posts")
@@ -65,7 +57,7 @@ export default async function CategoryPage({
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  const totalPages = Math.max(1, Math.ceil((count ?? 0) / POSTS_PER_PAGE));
+  const totalPages = getTotalPages(count, POSTS_PER_PAGE);
 
   const postIds = posts?.map((p) => p.id) ?? [];
   const { data: comments } = postIds.length
@@ -173,29 +165,7 @@ export default async function CategoryPage({
         )}
       </ul>
 
-      {totalPages > 1 && (
-        <div className="flex items-center gap-4 text-sm text-charcoal-400">
-          {page > 1 && (
-            <Link
-              href={`/c/${slug}?page=${page - 1}`}
-              className="hover:text-charcoal-200"
-            >
-              &larr; Previous
-            </Link>
-          )}
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages && (
-            <Link
-              href={`/c/${slug}?page=${page + 1}`}
-              className="hover:text-charcoal-200"
-            >
-              Next &rarr;
-            </Link>
-          )}
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} basePath={`/c/${slug}`} />
     </main>
   );
 }
