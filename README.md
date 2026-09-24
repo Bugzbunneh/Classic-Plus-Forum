@@ -1,5 +1,75 @@
 # Classic Plus Forum
 
+A full-stack forum for a *World of Warcraft* guild, built with Next.js and Supabase.
+Database-enforced role-based moderation (member/admin/owner), image uploads, reactions,
+notifications, an achievement system, and a Warcraft-themed dark UI — all server-rendered, with
+only two small client components in the whole app by design.
+
+[![CI](https://github.com/Bugzbunneh/Classic-Plus-Forum/actions/workflows/ci.yml/badge.svg)](https://github.com/Bugzbunneh/Classic-Plus-Forum/actions/workflows/ci.yml)
+
+🔗 **Live demo:** [classic-plus-forum.vercel.app](https://classic-plus-forum.vercel.app/)
+
+## Highlights
+
+- **Security lives in the database, not just the app.** Every permission — who can post, edit,
+  moderate content, or change someone's role — is enforced by Postgres Row Level Security
+  policies and triggers, so the rules hold even against a direct API call, not only through the
+  UI. See [Database schema](#database-schema).
+- **Two real security bugs found by testing the live database, not just reading the code** — a
+  `security definer` trigger that silently defeated its own guard, in two unrelated features.
+  Root-caused and documented as a reusable lesson, not just patched — see
+  [Database schema](#database-schema).
+- Full auth (email/password, OAuth-ready, password reset), role management, image uploads with
+  clipboard paste, reactions with a hover-to-see-who tooltip, notifications, and an achievement
+  system with unlock hints — see [Posts, comments, and profiles](#posts-comments-and-profiles).
+- Refactored for SOLID principles once the feature set stabilized: a shared data-access layer,
+  auth/role guards pulled out of ~10 duplicated call sites, and a 459-line page split into
+  focused, prop-driven components. See [Code organization](#code-organization).
+
+## Tech stack
+
+- **Framework:** Next.js (App Router, TypeScript)
+- **Package manager:** pnpm
+- **Styling:** Tailwind CSS
+- **Backend/DB/Auth:** Supabase (hosted Postgres + Auth), with Row Level Security policies used
+  to enforce role-based permissions (member/admin/owner) at the database level
+
+## Try it yourself
+
+Log in with a demo account to try posting, commenting, and reacting without creating one:
+
+- **Email:** `testmember@example.com`
+- **Password:** `TestMember123!`
+
+This account has the `member` role — enough to see everything except the admin/moderation
+views. It's a real seeded account with no personal data behind it.
+
+## A note on how this was built
+
+This project was built collaboratively with Claude Code (Anthropic's AI coding agent) — I
+directed the architecture, made the product/security/UX decisions, and reviewed everything that
+shipped, but a meaningful share of the line-by-line implementation is AI-generated under that
+direction. I think that's an increasingly normal and honest way to build software. The
+[Database schema](#database-schema) section below has a concrete example of what that review
+looked like in practice: two real security bugs a first pass introduced, caught only by testing
+actual behavior against the live database rather than trusting the code as written.
+
+## Getting started
+
+Install dependencies and run the dev server:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view it.
+
+You'll need a Supabase project for the database and auth. Copy `.env.example` to `.env.local`
+and fill in your Supabase project URL and anon key.
+
+Run `pnpm test` for the unit test suite.
+
 ## Project brief
 
 An online forum for a guild in **World of Warcraft: Forever** (the newest version of the game,
@@ -29,14 +99,6 @@ game-specific areas like class discussion, gameplay, and events.
   - (Exact capabilities per role to be defined as we build)
 - Users can create new topics/posts and comment on existing ones
 - Moderation tooling so Admins/Owner can keep the forums clean
-
-## Tech stack
-
-- **Framework:** Next.js (App Router, TypeScript)
-- **Package manager:** pnpm
-- **Styling:** Tailwind CSS
-- **Backend/DB/Auth:** Supabase (hosted Postgres + Auth), with Row Level Security policies used
-  to enforce role-based permissions (member/admin/owner) at the database level
 
 ## Code organization
 
@@ -135,22 +197,6 @@ To apply the schema, paste the migration file into the Supabase project's SQL Ed
 once the project is linked with the Supabase CLI, run `supabase db push`), then run
 `seed.sql` to add the starter categories.
 
-## Getting started
-
-Install dependencies and run the dev server:
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view it.
-
-You'll need a Supabase project for the database and auth. Copy `.env.example` to `.env.local`
-and fill in your Supabase project URL and anon key.
-
-Run `pnpm test` for the unit test suite.
-
 ## Authentication
 
 Email/password and Discord OAuth, both via Supabase Auth (`src/lib/actions/auth.ts`). A new
@@ -162,11 +208,11 @@ at the existing `/auth/callback` route (same code-exchange path OAuth already us
 the user on `/reset-password` with a live session to set a new password via `updateUser`.
 `/reset-password` doubles as a general "change password" page, linked from `/settings`, since
 the underlying call is identical either way. Note: Supabase's email sending rejects reserved
-domains like `@example.com` — the `testmember` test account can't receive a real reset email,
-so that specific email-delivery step needs a real, reachable address to test end-to-end (the
+domains like `@example.com` — the demo account can't receive a real reset email, so that
+specific email-delivery step needs a real, reachable address to test end-to-end (the
 `updateUser` mechanism itself is verified).
 
-**Profile editing** — `/settings` now also has a form for display name and bio
+**Profile editing** — `/settings` has a form for display name and bio
 (`updateProfile` in `src/lib/actions/profile.ts`); bio shows on `/u/[username]` when set.
 
 ## Role management
@@ -188,9 +234,10 @@ Change `TEST_ROLE` in `.env.local` and re-run `pnpm role:set` with no arguments 
 way to flip your own account between roles.
 
 There's also a second, permanent test account (role `member`, credentials in
-`TEST_MEMBER_EMAIL`/`TEST_MEMBER_PASSWORD` in `.env.local`) for logging in as a plain member in
-a separate browser/incognito window alongside your own account, to see both views at once
-without needing to flip roles back and forth.
+`TEST_MEMBER_EMAIL`/`TEST_MEMBER_PASSWORD` in `.env.local` — the same one described in
+[Try it yourself](#try-it-yourself)) for logging in as a plain member in a separate
+browser/incognito window alongside your own account, to see both views at once without needing
+to flip roles back and forth.
 
 Since role changes are only possible via a direct `postgres` connection (see above), this
 script (`scripts/set-role.mjs`) *is* that direct connection — it talks straight to Postgres
@@ -214,7 +261,8 @@ these utility classes (`bg-charcoal-900`, `text-green-400`, etc.) rather than Ta
   (delete buttons, error messages).
 
 The site is dark-only by design (no light mode) — `color-scheme: dark` is set globally rather
-than branching on `prefers-color-scheme`.
+than branching on `prefers-color-scheme`. A themed `not-found.tsx` and `error.tsx` cover
+unmatched routes and unexpected runtime errors, rather than Next.js's plain defaults.
 
 ## Posts, comments, and profiles
 
@@ -232,19 +280,19 @@ than branching on `prefers-color-scheme`.
   only browsing for one (constructs a `DataTransfer` and assigns it to the same hidden file
   input browsing would use, so the server actions needed no changes at all).
 - Category post lists and post comment threads are paginated (20 per page).
-- `/u/[username]` shows a member's avatar, role, join date, and recent posts.
+- `/u/[username]` shows a member's avatar, role, join date, bio, and recent posts.
 - `/settings` lets a signed-in user upload an avatar (Supabase Storage, `avatars` bucket —
-  `0017_avatar_storage.sql`). Each user can only write inside their own `<user_id>/` folder;
-  uploaded avatars are publicly readable. Changing display name/bio isn't wired up yet (see
-  TODO).
+  `0017_avatar_storage.sql`) and edit their display name/bio. Each user can only write inside
+  their own `<user_id>/` folder; uploaded avatars are publicly readable.
 - Avatars appear next to author names on category post lists (`src/components/avatar.tsx` —
   falls back to a colored initial when there's no avatar).
-- The post itself and every comment show a separate author info box (`src/components/author-box.tsx`)
-  — classic phpBB-style: avatar, name, role badge, total post+comment count, and an achievement
-  badge for activity milestones (`src/lib/achievements.ts`: 10 = Adventurer, 50 = Veteran,
-  200 = Legend). Stacks above the content on mobile, sits as a sidebar column on larger
-  screens. Counts are batched into two queries (all posts/comments by the authors shown on the
-  page) rather than one query per author.
+- The post itself and every comment show a separate author info box
+  (`src/components/post/author-box.tsx`) — classic phpBB-style: avatar, name, role badge, total
+  post+comment count, and an achievement badge for activity milestones
+  (`src/lib/achievements.ts`: 10 = Adventurer, 50 = Veteran, 200 = Legend). Stacks above the
+  content on mobile, sits as a sidebar column on larger screens. Counts are batched into two
+  queries (all posts/comments by the authors shown on the page) rather than one query per
+  author.
 - `/u/[username]` shows every achievement tier, not just the highest one earned — locked
   tiers are dimmed, and hovering any badge (earned or not) shows how it's earned/how much
   further there is to go (`milestoneUnlockText`). Pure CSS `group`/`group-hover`, no client JS
@@ -268,19 +316,22 @@ than branching on `prefers-color-scheme`.
   `/notifications` to view and mark all read). Never notifies you of your own replies.
 - A single 👍 reaction is available on posts and comments (not a full emoji picker, to match
   the plain oldschool-forum brief). Hovering the count shows who reacted (up to 3 names, then
-  "and N others" opens a popup listing everyone) — this is the one piece of client-side
-  JavaScript in an otherwise fully server-rendered app (`src/components/reaction-button.tsx`),
-  since a hover tooltip and a popup genuinely need client state. The actual reaction toggle
-  still works as a plain form action underneath it.
+  "and N others" opens a popup listing everyone) — this is one of only two pieces of
+  client-side JavaScript in an otherwise fully server-rendered app
+  (`src/components/post/reaction-button.tsx`, the other being the `Composer` above), since a
+  hover tooltip and a popup genuinely need client state. The actual reaction toggle still works
+  as a plain form action underneath it.
 
 ## Testing
 
-- `pnpm test` runs a small Vitest suite (currently just `src/lib/slug.test.ts`) — a starting
-  point, not full coverage.
+- `pnpm test` runs a small Vitest suite covering pure utility functions (slug generation,
+  achievement tiers, pagination math, image-upload validation) — a starting point, not full
+  coverage.
 - The database layer (RLS policies, triggers, guards) has been verified by hand through live
   end-to-end scripts against the real Supabase project for each new feature (signup → act →
   assert → clean up test data), not by a checked-in automated suite. Setting up Supabase's
   local dev stack (needs Docker) would be the natural next step to make that repeatable.
+- CI (`.github/workflows/ci.yml`) runs lint, tests, and a production build on every push/PR.
 
 ## TODO
 

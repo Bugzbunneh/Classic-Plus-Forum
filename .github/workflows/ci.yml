@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+
+      - run: pnpm test
+
+      # Values below are the Supabase anon key/URL, which are meant to be
+      # public (safe to ship in the client bundle, protected by Row Level
+      # Security) - not secrets, so no repo secrets need configuring for CI.
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://awmrlxjtujabrbldhfty.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_uEEWYEyKikswgUahVPKKeg_xO7GA5wo
