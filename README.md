@@ -206,6 +206,10 @@ than branching on `prefers-color-scheme`.
   200 = Legend). Stacks above the content on mobile, sits as a sidebar column on larger
   screens. Counts are batched into two queries (all posts/comments by the authors shown on the
   page) rather than one query per author.
+- `/u/[username]` shows every achievement tier, not just the highest one earned — locked
+  tiers are dimmed, and hovering any badge (earned or not) shows how it's earned/how much
+  further there is to go (`milestoneUnlockText`). Pure CSS `group`/`group-hover`, no client JS
+  needed for a hover-only tooltip like this.
 - Posts and comments can carry one optional image attachment (`post-images` bucket —
   `0023_post_images.sql`, same user-scoped-folder pattern as avatars). Uploaded server-side in
   `src/lib/storage.ts`, which rejects non-image files and anything over 5MB regardless of what

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMilestoneBadge } from "./achievements";
+import { MILESTONES, getMilestoneBadge, milestoneUnlockText } from "./achievements";
 
 describe("getMilestoneBadge", () => {
   it("returns null below the first threshold", () => {
@@ -20,5 +20,20 @@ describe("getMilestoneBadge", () => {
   it("returns Legend at 200", () => {
     expect(getMilestoneBadge(200)?.label).toBe("Legend");
     expect(getMilestoneBadge(10000)?.label).toBe("Legend");
+  });
+});
+
+describe("milestoneUnlockText", () => {
+  const veteran = MILESTONES.find((m) => m.label === "Veteran")!;
+
+  it("describes how many are needed when locked", () => {
+    expect(milestoneUnlockText(veteran, 30)).toBe(
+      "Reach 50 posts & comments to unlock (20 to go)",
+    );
+  });
+
+  it("confirms it's earned once the threshold is met", () => {
+    expect(milestoneUnlockText(veteran, 50)).toBe("Earned at 50+ posts & comments");
+    expect(milestoneUnlockText(veteran, 75)).toBe("Earned at 50+ posts & comments");
   });
 });
