@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/dal";
 import { redirectWithError } from "@/lib/redirect-with-error";
+import { ensureWriteSucceeded } from "@/lib/ensure-write-succeeded";
+import { getFormString } from "@/lib/form-data";
 import { uploadPostImage } from "@/lib/storage";
 
 export async function createComment(
@@ -12,9 +14,10 @@ export async function createComment(
   postId: string,
   formData: FormData,
 ) {
-  const profile = await requireProfile(`/c/${categorySlug}/${postSlug}`);
+  const postPath = `/c/${categorySlug}/${postSlug}`;
+  const profile = await requireProfile(postPath);
 
-  const body = (formData.get("body") as string).trim();
+  const body = getFormString(formData, "body").trim();
   if (!body) {
     return;
   }
@@ -26,7 +29,7 @@ export async function createComment(
     formData.get("image"),
   );
   if (imageError) {
-    redirectWithError(`/c/${categorySlug}/${postSlug}`, imageError);
+    redirectWithError(postPath, imageError);
   }
 
   const { error } = await supabase.from("comments").insert({
@@ -36,10 +39,10 @@ export async function createComment(
     image_url: imageUrl,
   });
   if (error) {
-    redirectWithError(`/c/${categorySlug}/${postSlug}`, error.message);
+    redirectWithError(postPath, error.message);
   }
 
-  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+  revalidatePath(postPath);
 }
 
 export async function updateComment(
@@ -48,9 +51,10 @@ export async function updateComment(
   commentId: string,
   formData: FormData,
 ) {
-  const profile = await requireProfile(`/c/${categorySlug}/${postSlug}`);
+  const postPath = `/c/${categorySlug}/${postSlug}`;
+  const profile = await requireProfile(postPath);
 
-  const body = (formData.get("body") as string).trim();
+  const body = getFormString(formData, "body").trim();
   if (!body) {
     return;
   }
@@ -62,19 +66,29 @@ export async function updateComment(
     formData.get("image"),
   );
   if (imageError) {
-    redirectWithError(`/c/${categorySlug}/${postSlug}`, imageError);
+    redirectWithError(postPath, imageError);
   }
 
-  await supabase
+  const result = await supabase
     .from("comments")
     .update({ body, ...(imageUrl && { image_url: imageUrl }) })
-    .eq("id", commentId);
+    .eq("id", commentId)
+    .select("id");
+  ensureWriteSucceeded(result, postPath);
 
-  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+  revalidatePath(postPath);
 }
 
 export async function deleteComment(categorySlug: string, postSlug: string, commentId: string) {
+  const postPath = `/c/${categorySlug}/${postSlug}`;
   const supabase = await createClient();
-  await supabase.from("comments").update({ is_deleted: true }).eq("id", commentId);
-  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+
+  const result = await supabase
+    .from("comments")
+    .update({ is_deleted: true })
+    .eq("id", commentId)
+    .select("id");
+  ensureWriteSucceeded(result, postPath);
+
+  revalidatePath(postPath);
 }

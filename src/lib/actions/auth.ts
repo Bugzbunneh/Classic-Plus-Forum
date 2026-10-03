@@ -4,13 +4,15 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getFormString } from "@/lib/form-data";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const next = (formData.get("next") as string) || "/";
+  const email = getFormString(formData, "email");
+  const password = getFormString(formData, "password");
+  const next = safeNextPath(getFormString(formData, "next"));
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -29,9 +31,9 @@ export async function signup(formData: FormData) {
   const supabase = await createClient();
   const origin = (await headers()).get("origin");
 
-  const username = formData.get("username") as string;
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const username = getFormString(formData, "username");
+  const email = getFormString(formData, "email");
+  const password = getFormString(formData, "password");
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -72,7 +74,7 @@ export async function signInWithDiscord() {
 export async function requestPasswordReset(formData: FormData) {
   const supabase = await createClient();
   const origin = (await headers()).get("origin");
-  const email = formData.get("email") as string;
+  const email = getFormString(formData, "email");
 
   await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`,
@@ -84,8 +86,8 @@ export async function requestPasswordReset(formData: FormData) {
 }
 
 export async function updatePassword(formData: FormData) {
-  const password = formData.get("password") as string;
-  const confirmPassword = formData.get("confirmPassword") as string;
+  const password = getFormString(formData, "password");
+  const confirmPassword = getFormString(formData, "confirmPassword");
 
   if (password !== confirmPassword) {
     redirect(`/reset-password?error=${encodeURIComponent("Passwords don't match")}`);

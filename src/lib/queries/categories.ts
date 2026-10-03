@@ -1,4 +1,5 @@
 import type { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -23,65 +24,38 @@ export type CategoryActivity = {
   } | null;
 };
 
+type CategoryActivityRow = Database["public"]["Views"]["category_activity"]["Row"];
+
+function fromRow(row: CategoryActivityRow): CategoryActivity {
+  const { last_activity_at, last_post_slug, last_post_title, last_author_name } = row;
+
+  const lastActivity =
+    last_activity_at && last_post_slug && last_post_title
+      ? {
+          createdAt: last_activity_at,
+          authorName: last_author_name ?? "Unknown",
+          postSlug: last_post_slug,
+          postTitle: last_post_title,
+        }
+      : null;
+
+  return {
+    threadCount: row.thread_count ?? 0,
+    totalPostCount: row.total_post_count ?? 0,
+    lastActivity,
+  };
+}
+
 /**
  * Per-category thread/post counts and most-recent activity, for the
- * homepage's category list. One pass over every post and comment in the
- * forum rather than a query per category.
+ * homepage's category list. Aggregated in Postgres by the
+ * `category_activity` view; categories with no posts have no row.
  */
 export async function getCategoryActivitySummaries(
   supabase: SupabaseClient,
 ): Promise<Map<string, CategoryActivity>> {
-  const summaries = new Map<string, CategoryActivity>();
+  const { data: rows } = await supabase.from("category_activity").select("*");
 
-  function summaryFor(categoryId: string): CategoryActivity {
-    let summary = summaries.get(categoryId);
-    if (!summary) {
-      summary = { threadCount: 0, totalPostCount: 0, lastActivity: null };
-      summaries.set(categoryId, summary);
-    }
-    return summary;
-  }
-
-  function recordActivity(categoryId: string, activity: NonNullable<CategoryActivity["lastActivity"]>) {
-    const summary = summaryFor(categoryId);
-    summary.totalPostCount += 1;
-    if (!summary.lastActivity || new Date(activity.createdAt) > new Date(summary.lastActivity.createdAt)) {
-      summary.lastActivity = activity;
-    }
-  }
-
-  const { data: posts } = await supabase
-    .from("posts")
-    .select("id, category_id, slug, title, created_at, profiles(display_name)")
-    .eq("is_deleted", false);
-
-  const postInfoById = new Map<string, { categoryId: string; slug: string; title: string }>();
-  posts?.forEach((post) => {
-    postInfoById.set(post.id, { categoryId: post.category_id, slug: post.slug, title: post.title });
-    summaryFor(post.category_id).threadCount += 1;
-    recordActivity(post.category_id, {
-      createdAt: post.created_at,
-      authorName: post.profiles?.display_name ?? "Unknown",
-      postSlug: post.slug,
-      postTitle: post.title,
-    });
-  });
-
-  const { data: comments } = await supabase
-    .from("comments")
-    .select("post_id, created_at, profiles(display_name)")
-    .eq("is_deleted", false);
-
-  comments?.forEach((comment) => {
-    const postInfo = comment.post_id ? postInfoById.get(comment.post_id) : undefined;
-    if (!postInfo) return;
-    recordActivity(postInfo.categoryId, {
-      createdAt: comment.created_at,
-      authorName: comment.profiles?.display_name ?? "Unknown",
-      postSlug: postInfo.slug,
-      postTitle: postInfo.title,
-    });
-  });
-
-  return summaries;
+  const summaryEntries = (rows ?? []).map((row) => [row.category_id!, fromRow(row)] as const);
+  return new Map(summaryEntries);
 }

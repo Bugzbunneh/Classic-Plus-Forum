@@ -445,7 +445,41 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      author_activity: {
+        Row: {
+          activity_count: number | null
+          author_id: string | null
+        }
+        Relationships: []
+      }
+      category_activity: {
+        Row: {
+          category_id: string | null
+          last_activity_at: string | null
+          last_author_name: string | null
+          last_post_slug: string | null
+          last_post_title: string | null
+          thread_count: number | null
+          total_post_count: number | null
+        }
+        Relationships: []
+      }
+      post_reply_stats: {
+        Row: {
+          last_reply_at: string | null
+          post_id: string | null
+          reply_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       current_user_is_banned: { Args: never; Returns: boolean }

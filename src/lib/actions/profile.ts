@@ -5,18 +5,24 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/dal";
 import { redirectWithError } from "@/lib/redirect-with-error";
+import { getFormString } from "@/lib/form-data";
+import { imageExtension, isProvidedFile, validateImage } from "@/lib/storage";
 
 export async function uploadAvatar(formData: FormData) {
   const profile = await requireProfile("/settings");
 
-  const file = formData.get("avatar") as File | null;
-  if (!file || file.size === 0) {
+  const file = formData.get("avatar");
+  if (!isProvidedFile(file)) {
     redirectWithError("/settings", "Choose an image first");
   }
 
+  const validationError = validateImage(file);
+  if (validationError) {
+    redirectWithError("/settings", validationError);
+  }
+
   const supabase = await createClient();
-  const ext = file.name.split(".").pop() ?? "png";
-  const path = `${profile.id}/avatar.${ext}`;
+  const path = `${profile.id}/avatar.${imageExtension(file)}`;
 
   const { error: uploadError } = await supabase.storage
     .from("avatars")
@@ -43,8 +49,8 @@ export async function uploadAvatar(formData: FormData) {
 export async function updateProfile(formData: FormData) {
   const profile = await requireProfile("/settings");
 
-  const displayName = (formData.get("displayName") as string).trim();
-  const bio = (formData.get("bio") as string).trim();
+  const displayName = getFormString(formData, "displayName").trim();
+  const bio = getFormString(formData, "bio").trim();
   if (!displayName) {
     redirectWithError("/settings", "Display name is required");
   }

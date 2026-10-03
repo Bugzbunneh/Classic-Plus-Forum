@@ -29,7 +29,14 @@ describe("uploadPostImage", () => {
     const file = new File(["not an image"], "notes.txt", { type: "text/plain" });
     const result = await uploadPostImage(fakeSupabase({ error: null }), "user-1", file);
     expect(result.url).toBeNull();
-    expect(result.error).toMatch(/isn't an image/i);
+    expect(result.error).toMatch(/isn't a supported image/i);
+  });
+
+  it("rejects SVGs, since they can carry script", async () => {
+    const svg = new File(["<svg></svg>"], "logo.svg", { type: "image/svg+xml" });
+    const result = await uploadPostImage(fakeSupabase({ error: null }), "user-1", svg);
+    expect(result.url).toBeNull();
+    expect(result.error).toMatch(/isn't a supported image/i);
   });
 
   it("rejects files over 5MB", async () => {

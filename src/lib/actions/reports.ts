@@ -5,15 +5,17 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/dal";
 import { redirectWithError } from "@/lib/redirect-with-error";
+import { ensureWriteSucceeded } from "@/lib/ensure-write-succeeded";
+import { getFormString } from "@/lib/form-data";
 
 function targetQuery(postId: string | null, commentId: string | null) {
   return postId ? `postId=${postId}` : `commentId=${commentId}`;
 }
 
 export async function createReport(formData: FormData) {
-  const postId = (formData.get("postId") as string) || null;
-  const commentId = (formData.get("commentId") as string) || null;
-  const reason = (formData.get("reason") as string).trim();
+  const postId = getFormString(formData, "postId") || null;
+  const commentId = getFormString(formData, "commentId") || null;
+  const reason = getFormString(formData, "reason").trim();
 
   const profile = await requireProfile(`/report?${targetQuery(postId, commentId)}`);
 
@@ -41,6 +43,13 @@ export async function createReport(formData: FormData) {
 
 export async function resolveReport(reportId: string) {
   const supabase = await createClient();
-  await supabase.from("reports").update({ status: "resolved" }).eq("id", reportId);
+
+  const result = await supabase
+    .from("reports")
+    .update({ status: "resolved" })
+    .eq("id", reportId)
+    .select("id");
+  ensureWriteSucceeded(result, "/admin/reports");
+
   revalidatePath("/admin/reports");
 }

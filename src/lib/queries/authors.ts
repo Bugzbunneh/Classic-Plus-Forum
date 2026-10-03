@@ -4,26 +4,14 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
  * Total posts + comments per author, for the "N posts" accolade in the
- * author box. Batched into two queries covering every author passed in,
- * rather than one query per author.
+ * author box. Counted in Postgres by the `author_activity` view.
  */
 export async function getAuthorActivityCounts(supabase: SupabaseClient, authorIds: string[]) {
-  const counts = new Map<string, number>();
-  const increment = (authorId: string) => counts.set(authorId, (counts.get(authorId) ?? 0) + 1);
-
-  const { data: postRows } = await supabase
-    .from("posts")
-    .select("author_id")
-    .eq("is_deleted", false)
+  const { data: rows } = await supabase
+    .from("author_activity")
+    .select("author_id, activity_count")
     .in("author_id", authorIds);
-  postRows?.forEach(({ author_id }) => increment(author_id));
 
-  const { data: commentRows } = await supabase
-    .from("comments")
-    .select("author_id")
-    .eq("is_deleted", false)
-    .in("author_id", authorIds);
-  commentRows?.forEach(({ author_id }) => increment(author_id));
-
-  return counts;
+  const countEntries = (rows ?? []).map((row) => [row.author_id!, row.activity_count ?? 0] as const);
+  return new Map(countEntries);
 }
