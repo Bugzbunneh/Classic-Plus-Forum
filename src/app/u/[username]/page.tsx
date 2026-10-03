@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { CalendarDays, MessageSquare, ScrollText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { MILESTONES, milestoneUnlockText } from "@/lib/achievements";
+import { MILESTONES } from "@/lib/achievements";
+import { staggerStyle } from "@/lib/stagger";
+import { Avatar } from "@/components/avatar";
 import { RoleBadge } from "@/components/role-badge";
+import { AchievementTile } from "@/components/achievement-badge";
+import { EmptyState } from "@/components/empty-state";
+import { PageContainer } from "@/components/page-container";
 
 export async function generateMetadata({
   params,
@@ -22,10 +29,13 @@ export default async function UserProfilePage({
   const { username } = await params;
   const supabase = await createClient();
 
+  // ilike for a case-insensitive match; escape its wildcards so /u/a% can't
+  // match someone else's username.
+  const usernamePattern = username.replace(/[\\%_]/g, "\\$&");
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, username, display_name, avatar_url, bio, role, created_at")
-    .ilike("username", username)
+    .ilike("username", usernamePattern)
     .single();
 
   if (!profile) {
@@ -49,89 +59,100 @@ export default async function UserProfilePage({
   const totalActivity = (postCount ?? 0) + (commentCount ?? 0);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-12">
-      <div className="flex items-center gap-4">
-        {profile.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={profile.avatar_url}
-            alt=""
-            className="h-16 w-16 rounded-full object-cover"
-          />
-        ) : (
-          <div className="h-16 w-16 rounded-full bg-charcoal-800" />
-        )}
-        <div>
-          <h1 className="flex items-center text-xl font-semibold text-charcoal-200">
-            {profile.display_name}
-            <RoleBadge role={profile.role} className="ml-2" />
-          </h1>
-          <p className="text-sm text-charcoal-400">
-            Joined {new Date(profile.created_at).toLocaleDateString()}
+    <PageContainer>
+      <section className="panel relative animate-rise-in overflow-hidden">
+        {/* Banner strip behind the avatar. */}
+        <div className="h-24 bg-[radial-gradient(ellipse_at_20%_0%,rgb(58_156_92/0.5),transparent_60%),radial-gradient(ellipse_at_90%_100%,rgb(201_161_59/0.35),transparent_60%)] bg-charcoal-900 sm:h-28" />
+
+        <div className="flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:px-6 sm:pb-6">
+          <div className="-mt-12 w-fit rounded-full bg-charcoal-900 p-1.5 sm:-mt-14">
+            <Avatar url={profile.avatar_url} name={profile.display_name} size={96} role={profile.role} />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="heading truncate text-2xl sm:text-3xl">{profile.display_name}</h1>
+              <RoleBadge role={profile.role} />
+            </div>
+            <p className="flex items-center gap-1.5 text-sm text-charcoal-400">
+              <CalendarDays className="size-4" aria-hidden="true" />
+              Joined {new Date(profile.created_at).toLocaleDateString()}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <StatChip icon={<ScrollText className="size-4 text-gold-400" />} value={postCount ?? 0} label="threads" />
+            <StatChip icon={<MessageSquare className="size-4 text-gold-400" />} value={commentCount ?? 0} label="replies" />
+          </div>
+        </div>
+
+        {profile.bio && (
+          <p className="border-t border-charcoal-700/60 px-5 py-4 text-sm whitespace-pre-wrap text-charcoal-300 sm:px-6">
+            {profile.bio}
           </p>
-        </div>
-      </div>
+        )}
+      </section>
 
-      {profile.bio && (
-        <p className="whitespace-pre-wrap text-sm text-charcoal-300">
-          {profile.bio}
-        </p>
-      )}
-
-      <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-charcoal-200">
+      <section className="flex flex-col gap-3">
+        <h2 className="heading flex items-center gap-3 text-lg">
           Achievements
+          <span className="h-px flex-1 bg-linear-to-r from-gold-700/50 to-transparent" />
         </h2>
-        <div className="flex flex-wrap gap-2">
-          {MILESTONES.map((milestone) => {
-            const earned = totalActivity >= milestone.threshold;
-
-            return (
-              <div key={milestone.label} className="group relative">
-                <span
-                  className={`block w-fit rounded border px-2 py-1 text-xs font-medium ${
-                    earned
-                      ? milestone.colorClass
-                      : "border-charcoal-700 text-charcoal-600"
-                  }`}
-                >
-                  {milestone.label}
-                </span>
-                <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden w-48 -translate-x-1/2 rounded border border-charcoal-600 bg-charcoal-950 px-2 py-1 text-center text-xs text-charcoal-200 shadow-lg group-hover:block">
-                  {milestoneUnlockText(milestone, totalActivity)}
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex flex-wrap gap-3">
+          {MILESTONES.map((milestone, index) => (
+            <AchievementTile
+              key={milestone.label}
+              milestone={milestone}
+              totalActivity={totalActivity}
+              index={index}
+            />
+          ))}
         </div>
-      </div>
+      </section>
 
-      <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-charcoal-200">
-          Recent posts
+      <section className="flex flex-col gap-3">
+        <h2 className="heading flex items-center gap-3 text-lg">
+          Recent threads
+          <span className="h-px flex-1 bg-linear-to-r from-gold-700/50 to-transparent" />
         </h2>
-        <ul className="flex flex-col divide-y divide-charcoal-700 rounded border border-charcoal-700 bg-charcoal-900">
+        <ul className="panel flex flex-col overflow-hidden">
           {posts?.length ? (
-            posts.map((post) => (
-              <li key={post.id} className="p-4 hover:bg-charcoal-800">
+            posts.map((post, index) => (
+              <li
+                key={post.id}
+                className="group stagger animate-rise-in border-b border-charcoal-700/60 last:border-b-0"
+                style={staggerStyle(index)}
+              >
                 <Link
                   href={`/c/${post.categories?.slug}/${post.slug}`}
-                  className="block"
+                  className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-white/3"
                 >
-                  <span className="font-medium text-green-400">
+                  <span className="truncate font-semibold text-charcoal-100 transition-[color,transform] duration-300 ease-spring group-hover:translate-x-1 group-hover:text-green-300">
                     {post.title}
                   </span>
-                  <p className="text-sm text-charcoal-400">
+                  <span className="shrink-0 text-xs text-charcoal-500">
                     {new Date(post.created_at).toLocaleDateString()}
-                  </p>
+                  </span>
                 </Link>
               </li>
             ))
           ) : (
-            <li className="p-4 text-sm text-charcoal-500">No posts yet.</li>
+            <li>
+              <EmptyState title="No threads yet" description={`${profile.display_name} hasn't started any threads.`} />
+            </li>
           )}
         </ul>
-      </div>
-    </main>
+      </section>
+    </PageContainer>
+  );
+}
+
+function StatChip({ icon, value, label }: { icon: ReactNode; value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center rounded-lg border border-charcoal-700 bg-charcoal-950/60 px-4 py-2">
+      <span className="flex items-center gap-1.5 text-lg font-bold text-charcoal-100">
+        {icon}
+        {value}
+      </span>
+      <span className="text-xs text-charcoal-500">{label}</span>
+    </div>
   );
 }

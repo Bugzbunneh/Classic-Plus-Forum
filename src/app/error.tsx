@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { RotateCcw } from "lucide-react";
+import { GameIcon } from "@/components/game-icon";
 
 export default function Error({
   error,
@@ -10,23 +12,19 @@ export default function Error({
   retry: () => void;
 }) {
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-      <h1 className="text-4xl font-semibold text-danger-400">Something broke</h1>
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
+      <GameIcon name="campfire" className="size-16 animate-flicker text-quality-legendary" />
+      <h1 className="heading text-3xl text-danger-400">Something broke</h1>
       <p className="text-charcoal-300">
         An unexpected error occurred{error.digest ? ` (ref: ${error.digest})` : ""}. Try again,
         or head back home.
       </p>
       <div className="flex gap-3">
-        <button
-          onClick={() => retry()}
-          className="rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
-        >
+        <button type="button" onClick={() => retry()} className="group btn btn-primary">
+          <RotateCcw className="size-4 transition-transform duration-500 ease-spring group-hover:-rotate-180" />
           Try again
         </button>
-        <Link
-          href="/"
-          className="rounded border border-charcoal-600 px-4 py-2 text-sm text-charcoal-300 hover:text-charcoal-100"
-        >
+        <Link href="/" className="btn btn-secondary">
           Home
         </Link>
       </div>

@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { Flag, Lock, LockOpen, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 import { AuthorBox } from "@/components/post/author-box";
 import { ReactionButton } from "@/components/post/reaction-button";
+import { PostImage } from "@/components/post/post-image";
+import { SubmitButton } from "@/components/submit-button";
 import { formatText } from "@/lib/format-text";
 import type { Role } from "@/lib/roles";
 import type { ReactionInfo } from "@/lib/queries/reactions";
@@ -49,81 +52,92 @@ export function PostArticle({
   reactionAction: FormAction;
 }) {
   return (
-    <article className="flex flex-col gap-4 rounded border border-charcoal-700 bg-charcoal-900 p-4 sm:flex-row">
+    <article className="panel flex animate-rise-in flex-col gap-4 p-5 sm:flex-row sm:p-6">
       <AuthorBox
         username={author.username}
         displayName={author.displayName}
         avatarUrl={author.avatarUrl}
         role={author.role}
         postCount={author.postCount}
-        className="sm:border-r sm:border-charcoal-700 sm:pr-4"
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex items-start justify-between gap-4">
-          <h1
-            className={`text-xl font-semibold ${post.isPinned ? "text-gold-400" : "text-charcoal-200"}`}
-          >
-            {post.isPinned && "📌 "}
-            {post.title}
-          </h1>
-          <div className="flex shrink-0 gap-3 text-xs">
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {post.isPinned && (
+            <span className="chip border-gold-700/70 text-gold-400">
+              <Pin className="size-3" aria-hidden="true" /> Pinned
+            </span>
+          )}
+          {post.isLocked && (
+            <span className="chip">
+              <Lock className="size-3" aria-hidden="true" /> Locked
+            </span>
+          )}
+          <time dateTime={post.createdAt} className="text-xs text-charcoal-500">
+            {new Date(post.createdAt).toLocaleString()}
+          </time>
+        </div>
+
+        <h1 className={`heading text-2xl leading-tight sm:text-3xl ${post.isPinned ? "text-gold-gradient" : ""}`}>
+          {post.title}
+        </h1>
+
+        <div className="text-[0.95rem] leading-relaxed whitespace-pre-wrap text-charcoal-200">
+          {formatText(post.body)}
+        </div>
+
+        {post.imageUrl && <PostImage url={post.imageUrl} maxHeightClass="max-h-[28rem]" />}
+
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-charcoal-700/60 pt-3">
+          <ReactionButton
+            action={reactionAction}
+            count={reaction.count}
+            hasReacted={reaction.hasReacted}
+            reactorNames={reaction.reactorNames}
+          />
+
+          <div className="flex flex-wrap items-center gap-0.5">
             {canEdit && (
-              <Link
-                href={`/c/${categorySlug}/${postSlug}/edit`}
-                className="text-charcoal-400 hover:text-charcoal-200"
-              >
-                Edit
+              <Link href={`/c/${categorySlug}/${postSlug}/edit`} className="btn btn-ghost btn-sm">
+                <Pencil className="size-3.5" aria-hidden="true" /> Edit
               </Link>
             )}
             {canReport && (
-              <Link
-                href={`/report?postId=${post.id}`}
-                className="text-charcoal-400 hover:text-charcoal-200"
-              >
-                Report
+              <Link href={`/report?postId=${post.id}`} className="btn btn-ghost btn-sm">
+                <Flag className="size-3.5" aria-hidden="true" /> Report
               </Link>
             )}
             {canModerate && (
               <>
                 <form action={onTogglePin}>
-                  <button type="submit" className="text-charcoal-400 hover:text-gold-400">
+                  <SubmitButton className="btn btn-ghost btn-sm hover:text-gold-300">
+                    {post.isPinned ? (
+                      <PinOff className="size-3.5" aria-hidden="true" />
+                    ) : (
+                      <Pin className="size-3.5" aria-hidden="true" />
+                    )}
                     {post.isPinned ? "Unpin" : "Pin"}
-                  </button>
+                  </SubmitButton>
                 </form>
                 <form action={onToggleLock}>
-                  <button type="submit" className="text-charcoal-400 hover:text-charcoal-200">
+                  <SubmitButton className="btn btn-ghost btn-sm">
+                    {post.isLocked ? (
+                      <LockOpen className="size-3.5" aria-hidden="true" />
+                    ) : (
+                      <Lock className="size-3.5" aria-hidden="true" />
+                    )}
                     {post.isLocked ? "Unlock" : "Lock"}
-                  </button>
+                  </SubmitButton>
                 </form>
                 <form action={onDelete}>
-                  <button type="submit" className="text-danger-400 hover:text-danger-500">
-                    Delete
-                  </button>
+                  <SubmitButton className="btn btn-danger btn-sm">
+                    <Trash2 className="size-3.5" aria-hidden="true" /> Delete
+                  </SubmitButton>
                 </form>
               </>
             )}
           </div>
         </div>
-        <p className="text-sm text-charcoal-400">
-          {new Date(post.createdAt).toLocaleString()}
-          {post.isLocked && <span className="ml-2 uppercase text-charcoal-500">locked</span>}
-        </p>
-        <p className="whitespace-pre-wrap text-charcoal-200">{formatText(post.body)}</p>
-        {post.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.imageUrl}
-            alt=""
-            className="max-h-96 w-fit max-w-full rounded border border-charcoal-700 object-contain"
-          />
-        )}
-        <ReactionButton
-          action={reactionAction}
-          count={reaction.count}
-          hasReacted={reaction.hasReacted}
-          reactorNames={reaction.reactorNames}
-        />
       </div>
     </article>
   );

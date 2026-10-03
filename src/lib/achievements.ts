@@ -1,10 +1,44 @@
-export type Milestone = { label: string; threshold: number; colorClass: string };
+import type { GameIconName } from "@/components/game-icon";
 
-// Ascending order - based on total posts + comments.
+export type Milestone = {
+  label: string;
+  threshold: number;
+  icon: GameIconName;
+  /** WoW item-quality name, for flavour text in the tooltip. */
+  quality: string;
+  /** Text colour for that quality. */
+  textClass: string;
+  /** Border and background tint for that quality. */
+  frameClass: string;
+};
+
+// Ascending order - based on total posts + comments. Colours follow WoW's
+// item rarity: uncommon (green), rare (blue), legendary (orange).
 export const MILESTONES: Milestone[] = [
-  { threshold: 10, label: "Adventurer", colorClass: "border-charcoal-500 text-charcoal-300" },
-  { threshold: 50, label: "Veteran", colorClass: "border-green-600 text-green-400" },
-  { threshold: 200, label: "Legend", colorClass: "border-gold-600 text-gold-400" },
+  {
+    threshold: 10,
+    label: "Adventurer",
+    icon: "compass",
+    quality: "Uncommon",
+    textClass: "text-quality-uncommon",
+    frameClass: "border-quality-uncommon/40 bg-quality-uncommon/10",
+  },
+  {
+    threshold: 50,
+    label: "Veteran",
+    icon: "griffin-shield",
+    quality: "Rare",
+    textClass: "text-quality-rare",
+    frameClass: "border-quality-rare/40 bg-quality-rare/10",
+  },
+  {
+    threshold: 200,
+    label: "Legend",
+    icon: "laurel-crown",
+    quality: "Legendary",
+    textClass: "text-quality-legendary",
+    frameClass: "border-quality-legendary/40 bg-quality-legendary/10",
+  },
 ];
 
 export function getMilestoneBadge(totalCount: number): Milestone | null {
@@ -17,4 +51,9 @@ export function milestoneUnlockText(milestone: Milestone, totalCount: number): s
   }
   const remaining = milestone.threshold - totalCount;
   return `Reach ${milestone.threshold} posts & comments to unlock (${remaining} to go)`;
+}
+
+/** 0-100, how far `totalCount` is towards unlocking `milestone`. */
+export function milestoneProgress(milestone: Milestone, totalCount: number): number {
+  return Math.min(100, Math.round((totalCount / milestone.threshold) * 100));
 }

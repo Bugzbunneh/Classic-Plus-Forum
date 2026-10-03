@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, Lock, Send } from "lucide-react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
@@ -15,6 +16,9 @@ import { Composer } from "@/components/composer";
 import { deletePost, togglePostLock, togglePostPin } from "@/lib/actions/posts";
 import { createComment, deleteComment, updateComment } from "@/lib/actions/comments";
 import { toggleReaction } from "@/lib/actions/reactions";
+import { ErrorBanner } from "@/components/error-banner";
+import { PageContainer } from "@/components/page-container";
+import { SubmitButton } from "@/components/submit-button";
 
 const COMMENTS_PER_PAGE = 20;
 
@@ -97,19 +101,16 @@ export default async function PostPage({
   const canEditPost = profile?.id === post.author_id || canModerate;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-12">
+    <PageContainer>
       <Link
         href={`/c/${categorySlug}`}
-        className="text-sm text-charcoal-400 hover:text-charcoal-200"
+        className="group flex w-fit items-center gap-1.5 text-sm text-charcoal-400 transition-colors hover:text-gold-300"
       >
-        &larr; {category.name}
+        <ArrowLeft className="size-4 transition-transform duration-300 ease-spring group-hover:-translate-x-1" />
+        {category.name}
       </Link>
 
-      {error && (
-        <p className="rounded border border-danger-600 bg-danger-950 px-3 py-2 text-sm text-danger-400">
-          {error}
-        </p>
-      )}
+      <ErrorBanner message={error} />
 
       <PostArticle
         post={{
@@ -135,30 +136,26 @@ export default async function PostPage({
         canReport={Boolean(profile)}
         onTogglePin={togglePostPin.bind(null, categorySlug, postSlug, post.id, post.is_pinned)}
         onToggleLock={togglePostLock.bind(null, categorySlug, postSlug, post.id, post.is_locked)}
-        onDelete={deletePost.bind(null, categorySlug, post.id)}
+        onDelete={deletePost.bind(null, categorySlug, postSlug, post.id)}
         reaction={postReaction}
-        reactionAction={toggleReaction.bind(
-          null,
-          categorySlug,
-          postSlug,
-          post.id,
-          null,
-          postReaction.hasReacted,
-        )}
+        reactionAction={toggleReaction.bind(null, categorySlug, postSlug, post.id, null)}
       />
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-charcoal-200">
-          Comments ({commentCount ?? 0})
+        <h2 className="heading flex items-center gap-3 text-lg">
+          Replies
+          <span className="chip font-sans">{commentCount ?? 0}</span>
+          <span className="h-px flex-1 bg-linear-to-r from-gold-700/50 to-transparent" />
         </h2>
 
         <ul className="flex flex-col gap-3">
-          {visibleComments.map((comment) => {
+          {visibleComments.map((comment, index) => {
             const reaction = commentReactionsById.get(comment.id)!;
 
             return (
               <CommentItem
                 key={comment.id}
+                index={index}
                 comment={{
                   id: comment.id,
                   body: comment.body,
@@ -181,14 +178,7 @@ export default async function PostPage({
                 onUpdate={updateComment.bind(null, categorySlug, postSlug, comment.id)}
                 onDelete={deleteComment.bind(null, categorySlug, postSlug, comment.id)}
                 reaction={reaction}
-                reactionAction={toggleReaction.bind(
-                  null,
-                  categorySlug,
-                  postSlug,
-                  null,
-                  comment.id,
-                  reaction.hasReacted,
-                )}
+                reactionAction={toggleReaction.bind(null, categorySlug, postSlug, null, comment.id)}
               />
             );
           })}
@@ -203,31 +193,36 @@ export default async function PostPage({
 
         {profile ? (
           post.is_locked ? (
-            <p className="text-sm text-charcoal-500">This post is locked.</p>
+            <p className="panel flex items-center gap-2 px-5 py-4 text-sm text-charcoal-400">
+              <Lock className="size-4 text-charcoal-500" aria-hidden="true" />
+              This thread is locked, so no new replies can be posted.
+            </p>
           ) : (
             <form
               action={createComment.bind(null, categorySlug, postSlug, post.id)}
               encType="multipart/form-data"
-              className="flex flex-col gap-2"
+              className="panel flex flex-col gap-3 p-4 sm:p-5"
             >
+              <p className="heading text-sm">Join the conversation</p>
               <Composer required placeholder="Write a reply..." />
-              <button
-                type="submit"
-                className="self-start rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
-              >
-                Reply
-              </button>
+              <SubmitButton className="group btn btn-primary self-end">
+                Post reply
+                <Send className="size-4 transition-transform duration-300 ease-spring group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </SubmitButton>
             </form>
           )
         ) : (
-          <p className="text-sm text-charcoal-500">
-            <Link href="/login" className="text-green-400 hover:underline">
+          <p className="panel px-5 py-4 text-sm text-charcoal-400">
+            <Link
+              href={`/login?next=${encodeURIComponent(`/c/${categorySlug}/${postSlug}`)}`}
+              className="font-semibold text-green-400 hover:text-green-300 hover:underline"
+            >
               Log in
             </Link>{" "}
-            to reply.
+            to join the conversation.
           </p>
         )}
       </section>
-    </main>
+    </PageContainer>
   );
 }

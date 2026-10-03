@@ -2,8 +2,9 @@
 
 A full-stack forum for a *World of Warcraft* guild, built with Next.js and Supabase.
 Database-enforced role-based moderation (member/admin/owner), image uploads, reactions,
-notifications, an achievement system, and a Warcraft-themed dark UI — all server-rendered, with
-only two small client components in the whole app by design.
+notifications, an achievement system, and a Warcraft-inspired UI with springy, responsive
+interactions — server-rendered, with client components only where interaction genuinely needs
+client state.
 
 [![CI](https://github.com/Bugzbunneh/Classic-Plus-Forum/actions/workflows/ci.yml/badge.svg)](https://github.com/Bugzbunneh/Classic-Plus-Forum/actions/workflows/ci.yml)
 
@@ -22,6 +23,10 @@ only two small client components in the whole app by design.
 - Full auth (email/password, OAuth-ready, password reset), role management, image uploads with
   clipboard paste, reactions with a hover-to-see-who tooltip, notifications, and an achievement
   system with unlock hints — see [Posts, comments, and profiles](#posts-comments-and-profiles).
+- **Interactions that feel alive.** Reactions update instantly (`useOptimistic`) with a spark
+  burst, every form button shows a pending spinner, pages cross-fade with React's
+  `<ViewTransition>`, and lists stagger in — all mostly CSS, and all switched off under
+  `prefers-reduced-motion`. See [Design](#design).
 - Refactored for SOLID principles once the feature set stabilized: a shared data-access layer,
   auth/role guards pulled out of ~10 duplicated call sites, and a 459-line page split into
   focused, prop-driven components. See [Code organization](#code-organization).
@@ -118,11 +123,22 @@ with one clear job:
   `Map`-building out of page components, which just ask for `getPostReactions(...)` and render
   the result.
 - **`src/lib/redirect-with-error.ts`** — `redirectWithError(path, message)` for the
-  "redirect back to this page with `?error=` set" pattern every form action uses.
+  "redirect back to this page with `?error=` set" pattern every form action uses, shown by the
+  shared `ErrorBanner` component.
+- **`src/lib/ensure-write-succeeded.ts`** — checks an update/delete actually changed a row.
+  When RLS blocks a write, Postgres doesn't raise an error; the write just matches zero rows,
+  so without this a refused moderation action would look like it worked.
+- **`src/lib/safe-next-path.ts`** — only lets the post-login `?next=` redirect point at a path on
+  this site, so a crafted login link can't bounce someone to another domain.
+- **`src/lib/form-data.ts`** — `getFormString`, so a hand-crafted request missing a field gets
+  a validation error rather than a 500 (Server Actions are public endpoints).
 - **`src/lib/pagination.ts`** — `getPageRange`/`getTotalPages`, shared by the category page's
   posts and the post page's comments.
 - **`src/components/pagination.tsx`**, **`role-badge.tsx`** — small shared UI for patterns that
   were previously copy-pasted with minor variations across 2-3 pages each.
+- **Page building blocks** — `PageContainer` (every page's `<main>` and its view transition),
+  `PageHeader`, `CenteredPanel` (login, signup, reports), `Field`, `SubmitButton`, `EmptyState`,
+  `IconTile`, `ErrorBanner`. Pages compose these rather than repeating layout markup.
 
 Server actions are split by what they act on, not bundled into one big file: `actions/posts.ts`,
 `actions/comments.ts`, `actions/reactions.ts`, `actions/profile.ts`, `actions/reports.ts`,
@@ -173,8 +189,11 @@ Role enforcement lives in the database, not just the app:
   anyone except the `owner`, ban/unban is blocked from anyone below `admin`, and a
   non-moderator author can't pin/lock their own post or undo a moderator's soft-delete on
   their own post/comment.
-- `is_banned` actually blocks new posts/comments (`0009_ban_enforcement.sql`) — it isn't
-  just a display flag.
+- `is_banned` actually blocks new posts/comments (`0009_ban_enforcement.sql`) and reactions
+  (`0024_storage_limits_and_activity_views.sql`) — it isn't just a display flag.
+- Upload rules (PNG/JPEG/GIF/WebP only, 5MB max) are set on the storage buckets themselves in
+  `0024`, not just checked in the app — so they also hold for someone calling the Storage API
+  directly with the public anon key. SVG is excluded because it can carry script.
 - Role changes can only happen via a direct `postgres` connection (a migration or the SQL
   Editor) — never through the app or API, even with elevated keys. This is deliberate: it's
   what makes bootstrapping the very first owner possible without opening a self-promotion
@@ -246,19 +265,43 @@ through the same pooler the Supabase CLI resolved during `supabase link`
 does. Use it to flip your own test account between roles and see how the UI looks for each one.
 This capability must never be exposed through the running app itself.
 
-## Theme
+## Design
 
-Defined as Tailwind v4 theme tokens in [`src/app/globals.css`](src/app/globals.css) — use
-these utility classes (`bg-charcoal-900`, `text-green-400`, etc.) rather than Tailwind's stock
-`zinc`/`emerald`/etc. when building new pages, so everything stays on the same palette:
+Inspired by WoW's own UI rather than copying its artwork: gold-trimmed panels, carved-stone
+display type, item-rarity colours, and navy item tooltips. Everything lives in
+[`src/app/globals.css`](src/app/globals.css).
 
-- **`charcoal-950` → `charcoal-200`** — page/panel backgrounds, borders, and body text
-  (950 darkest, 200 near-white).
-- **`green-950` → `green-400`** — primary brand/action color (links, buttons, "member" tone).
-- **`gold-950`, `gold-600` → `gold-400`** — accent for hierarchy/emphasis (owner badge, pinned
-  post marker).
-- **`danger-950`, `danger-600` → `danger-400`** — muted blood-red for destructive actions
-  (delete buttons, error messages).
+**Palette** (Tailwind v4 theme tokens — use these rather than stock `zinc`/`emerald`/etc.):
+
+- **`charcoal-975` → `charcoal-100`** — backgrounds, borders, and body text.
+- **`green-950` → `green-300`** — primary brand/action colour (links, primary buttons, focus).
+- **`gold-950` → `gold-300`** — trim and emphasis (panel borders, headings, pinned threads).
+- **`danger-950` → `danger-400`** — destructive actions and errors.
+- **`quality-uncommon` / `rare` / `epic` / `legendary`** — WoW item-rarity colours. Achievements
+  use them (Adventurer is uncommon green, Veteran rare blue, Legend legendary orange), and so do
+  ranks: the owner shows as *Guild Master* (legendary) and admins as *Officer* (epic). The
+  underlying role values are unchanged.
+
+**Type:** Cinzel (Google Fonts) for headings, via the `.heading` class, in the spirit of WoW's
+title lettering; Geist for body text.
+
+**Reusable classes** (in `@layer components`, so utilities can still override them): `.panel`
+(the layered surface every card sits on, with a gold-to-charcoal gradient border) and
+`.panel-interactive` (lifts and glows on hover), `.btn` plus `.btn-primary` / `-secondary` /
+`-ghost` / `-danger` / `-discord` / `-sm`, `.input`, `.label`, `.chip`, `.wow-tooltip`, and
+`.skeleton`.
+
+**Motion:** spring easing (`ease-spring`) on hovers and presses, a light sweep across primary
+buttons, staggered `animate-rise-in` entrances for lists (give each item
+`style={staggerStyle(index)}`), page cross-fades via React's `<ViewTransition>` inside
+`PageContainer` (with the header pinned so it doesn't move), a shimmering `loading.tsx`
+skeleton, and a shaking `ErrorBanner`. A `prefers-reduced-motion` rule turns all of it off.
+
+**Icons:** [Lucide](https://lucide.dev) for interface icons, and fantasy icons from
+[game-icons.net](https://game-icons.net) by Lorc and Delapouite (CC BY 3.0, credited in the site
+footer) for categories, achievements, and the logo. Those are inlined as SVG paths in
+`src/components/game-icon.tsx`, so they take on the text colour; category icons are mapped by
+slug in `src/lib/category-icons.ts`.
 
 The site is dark-only by design (no light mode) — `color-scheme: dark` is set globally rather
 than branching on `prefers-color-scheme`. A themed `not-found.tsx` and `error.tsx` cover
@@ -274,9 +317,9 @@ unmatched routes and unexpected runtime errors, rather than Next.js's plain defa
   (`src/lib/format-text.tsx`), rendered as React text nodes — never `dangerouslySetInnerHTML`,
   so there's no HTML-injection surface no matter what a user types.
 - Every post/comment textarea (new post, edit post, reply, inline comment edit) uses a shared
-  `Composer` (`src/components/composer.tsx`) — a second piece of client-side JS alongside the
-  reaction button, since an emoji picker and clipboard paste handling need client state. It
-  adds an emoji button and lets you paste an image straight from the clipboard instead of
+  `Composer` (`src/components/composer.tsx`) — a client component, since an emoji picker and
+  clipboard paste handling need client state. It adds an emoji button and lets you paste an
+  image straight from the clipboard instead of
   only browsing for one (constructs a `DataTransfer` and assigns it to the same hidden file
   input browsing would use, so the server actions needed no changes at all).
 - Category post lists and post comment threads are paginated (20 per page).
@@ -290,23 +333,27 @@ unmatched routes and unexpected runtime errors, rather than Next.js's plain defa
   (`src/components/post/author-box.tsx`) — classic phpBB-style: avatar, name, role badge, total
   post+comment count, and an achievement badge for activity milestones
   (`src/lib/achievements.ts`: 10 = Adventurer, 50 = Veteran, 200 = Legend). Stacks above the
-  content on mobile, sits as a sidebar column on larger screens. Counts are batched into two
-  queries (all posts/comments by the authors shown on the page) rather than one query per
-  author.
+  content on mobile, sits as a sidebar column on larger screens. Counts come from the
+  `author_activity` view, one query for every author on the page.
+- Homepage and category-list counts (threads, posts, replies, latest activity) are aggregated
+  in Postgres by the `category_activity` and `post_reply_stats` views rather than by fetching
+  rows and counting in JavaScript — which would silently undercount once a query passed
+  PostgREST's 1000-row response cap. The views use `security_invoker`, so RLS still applies.
 - `/u/[username]` shows every achievement tier, not just the highest one earned — locked
-  tiers are dimmed, and hovering any badge (earned or not) shows how it's earned/how much
-  further there is to go (`milestoneUnlockText`). Pure CSS `group`/`group-hover`, no client JS
-  needed for a hover-only tooltip like this.
+  tiers are greyed out with a progress bar, and hovering or focusing any tile shows a WoW-style
+  item tooltip with how it's earned or how far there is to go (`milestoneUnlockText`). Pure CSS
+  `group-hover`/`group-focus-visible`, no client JS needed for a tooltip like this.
 - Posts and comments can carry one optional image attachment (`post-images` bucket —
   `0023_post_images.sql`, same user-scoped-folder pattern as avatars). Uploaded server-side in
-  `src/lib/storage.ts`, which rejects non-image files and anything over 5MB regardless of what
-  the client's `accept="image/*"` hint would otherwise let through.
+  `src/lib/storage.ts`, which checks type and size up front for a friendly error message; the
+  bucket enforces the same rules regardless (see [Database schema](#database-schema)).
 
 ## Moderation tools
 
 - **Reports** (`/report` to file one, `/admin/reports` to review) — any signed-in member can
   flag a post or comment with a reason; admins/owner see open reports and can resolve them.
-  The header shows an open-report count badge for moderators.
+  For moderators, the header avatar shows a pulsing dot when reports are open, and the count
+  appears next to Reports in the account menu.
 - **Moderation log** (`/admin/log`) — a read-only audit trail of role/ban changes and
   pin/lock/delete/restore actions, newest first.
 
@@ -316,17 +363,22 @@ unmatched routes and unexpected runtime errors, rather than Next.js's plain defa
   `/notifications` to view and mark all read). Never notifies you of your own replies.
 - A single 👍 reaction is available on posts and comments (not a full emoji picker, to match
   the plain oldschool-forum brief). Hovering the count shows who reacted (up to 3 names, then
-  "and N others" opens a popup listing everyone) — this is one of only two pieces of
-  client-side JavaScript in an otherwise fully server-rendered app
-  (`src/components/post/reaction-button.tsx`, the other being the `Composer` above), since a
-  hover tooltip and a popup genuinely need client state. The actual reaction toggle still works
-  as a plain form action underneath it.
+  "and N others" opens a popup listing everyone). The button
+  (`src/components/post/reaction-button.tsx`) flips instantly with `useOptimistic`, pops, and
+  bursts sparks when you add a reaction, then settles on whatever the server returns. The
+  server decides whether a click adds or removes, so a stale tab can't get out of sync. The
+  toggle is still a plain form action underneath.
+
+**Client components** are kept to the places that genuinely need client state: `Composer`,
+`ReactionButton`, `UserMenu` (the header dropdown, built on the native Popover API so
+click-outside and Escape come free), `SubmitButton` (`useFormStatus` for the pending spinner),
+and Next.js's required `error.tsx`. Everything else renders on the server.
 
 ## Testing
 
 - `pnpm test` runs a small Vitest suite covering pure utility functions (slug generation,
-  achievement tiers, pagination math, image-upload validation) — a starting point, not full
-  coverage.
+  achievement tiers, pagination math, image-upload validation, and the post-login redirect
+  guard against off-site tricks like `//evil.example`) — a starting point, not full coverage.
 - The database layer (RLS policies, triggers, guards) has been verified by hand through live
   end-to-end scripts against the real Supabase project for each new feature (signup → act →
   assert → clean up test data), not by a checked-in automated suite. Setting up Supabase's

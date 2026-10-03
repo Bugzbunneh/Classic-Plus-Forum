@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MILESTONES, getMilestoneBadge, milestoneUnlockText } from "./achievements";
+import {
+  MILESTONES,
+  getMilestoneBadge,
+  milestoneProgress,
+  milestoneUnlockText,
+} from "./achievements";
 
 describe("getMilestoneBadge", () => {
   it("returns null below the first threshold", () => {
@@ -35,5 +40,19 @@ describe("milestoneUnlockText", () => {
   it("confirms it's earned once the threshold is met", () => {
     expect(milestoneUnlockText(veteran, 50)).toBe("Earned at 50+ posts & comments");
     expect(milestoneUnlockText(veteran, 75)).toBe("Earned at 50+ posts & comments");
+  });
+});
+
+describe("milestoneProgress", () => {
+  const veteran = MILESTONES.find((m) => m.label === "Veteran")!;
+
+  it("is a rounded percentage towards the threshold", () => {
+    expect(milestoneProgress(veteran, 0)).toBe(0);
+    expect(milestoneProgress(veteran, 17)).toBe(34);
+  });
+
+  it("caps at 100 once earned", () => {
+    expect(milestoneProgress(veteran, 50)).toBe(100);
+    expect(milestoneProgress(veteran, 500)).toBe(100);
   });
 });

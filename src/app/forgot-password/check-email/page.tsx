@@ -1,17 +1,20 @@
+import Link from "next/link";
 import type { Metadata } from "next";
+import { CenteredPanel } from "@/components/centered-panel";
 
 export const metadata: Metadata = { title: "Check your email" };
 
 export default function ForgotPasswordCheckEmailPage() {
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-4 px-4 py-16 text-center">
-      <h1 className="text-2xl font-semibold text-charcoal-200">
-        Check your email
-      </h1>
-      <p className="text-charcoal-400">
-        If an account exists for that email, we&apos;ve sent a link to reset
-        your password.
-      </p>
-    </main>
+    <CenteredPanel
+      title="Check your email"
+      description="If an account exists for that email, we've sent a link to reset your password."
+      icon="tied-scroll"
+      footer={
+        <Link href="/login" className="font-semibold text-green-400 hover:text-green-300 hover:underline">
+          Back to log in
+        </Link>
+      }
+    />
   );
 }

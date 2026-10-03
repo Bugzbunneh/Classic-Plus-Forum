@@ -1,16 +1,20 @@
+import Link from "next/link";
 import type { Metadata } from "next";
+import { CenteredPanel } from "@/components/centered-panel";
 
 export const metadata: Metadata = { title: "Report submitted" };
 
 export default function ReportThanksPage() {
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-4 px-4 py-16 text-center">
-      <h1 className="text-2xl font-semibold text-charcoal-200">
-        Thanks for the report
-      </h1>
-      <p className="text-charcoal-400">
-        A moderator will take a look shortly.
-      </p>
-    </main>
+    <CenteredPanel
+      title="Thanks for the report"
+      description="An officer will take a look shortly."
+      icon="griffin-shield"
+      footer={
+        <Link href="/" className="font-semibold text-green-400 hover:text-green-300 hover:underline">
+          Back to the forum
+        </Link>
+      }
+    />
   );
 }

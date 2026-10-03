@@ -1,8 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { CheckCheck, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/dal";
 import { markAllNotificationsRead } from "@/lib/actions/notifications";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import { staggerStyle } from "@/lib/stagger";
+import { EmptyState } from "@/components/empty-state";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { SubmitButton } from "@/components/submit-button";
 
 export const metadata: Metadata = { title: "Notifications" };
 
@@ -22,55 +29,71 @@ export default async function NotificationsPage() {
   const hasUnread = notifications?.some((n) => !n.is_read) ?? false;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-12">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-charcoal-200">
-          Notifications
-        </h1>
-        {hasUnread && (
-          <form action={markAllNotificationsRead}>
-            <button
-              type="submit"
-              className="text-sm text-green-400 hover:underline"
-            >
-              Mark all as read
-            </button>
-          </form>
-        )}
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Notifications"
+        description="Replies to your threads."
+        actions={
+          hasUnread && (
+            <form action={markAllNotificationsRead}>
+              <SubmitButton className="btn btn-secondary btn-sm">
+                <CheckCheck className="size-4" aria-hidden="true" />
+                Mark all as read
+              </SubmitButton>
+            </form>
+          )
+        }
+      />
 
-      <ul className="flex flex-col divide-y divide-charcoal-700 rounded border border-charcoal-700 bg-charcoal-900">
+      <ul className="panel flex flex-col overflow-hidden">
         {notifications?.length ? (
-          notifications.map((notification) => (
-            <li
-              key={notification.id}
-              className={`p-4 ${notification.is_read ? "" : "bg-charcoal-800"}`}
-            >
-              {notification.post ? (
-                <Link
-                  href={`/c/${notification.post.categories?.slug}/${notification.post.slug}`}
-                  className="block text-green-400 hover:underline"
-                >
-                  {notification.actor?.display_name ?? "Someone"} replied to
-                  &quot;{notification.post.title}&quot;
-                </Link>
-              ) : (
-                <span className="text-charcoal-300">
-                  {notification.actor?.display_name ?? "Someone"} replied to
-                  your post
+          notifications.map((notification, index) => {
+            const actorName = notification.actor?.display_name ?? "Someone";
+            const postHref = notification.post
+              ? `/c/${notification.post.categories?.slug}/${notification.post.slug}`
+              : null;
+
+            return (
+              <li
+                key={notification.id}
+                className={`group stagger relative flex animate-rise-in items-start gap-3 border-b border-charcoal-700/60 px-5 py-4 transition-colors last:border-b-0 hover:bg-white/3 ${
+                  notification.is_read ? "" : "bg-green-950/30"
+                }`}
+                style={staggerStyle(index)}
+              >
+                <span className="relative mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-charcoal-700 bg-charcoal-900 text-gold-400 transition-transform duration-300 ease-spring group-hover:scale-110">
+                  <MessageSquare className="size-4" aria-hidden="true" />
+                  {!notification.is_read && (
+                    <span className="absolute -top-0.5 -right-0.5 size-2.5 animate-badge-pulse rounded-full bg-green-500" />
+                  )}
                 </span>
-              )}
-              <p className="text-sm text-charcoal-400">
-                {new Date(notification.created_at).toLocaleString()}
-              </p>
-            </li>
-          ))
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-charcoal-300">
+                    <strong className="text-charcoal-100">{actorName}</strong> replied to{" "}
+                    {postHref ? (
+                      <Link
+                        href={postHref}
+                        className="font-semibold text-green-400 after:absolute after:inset-0 group-hover:text-green-300"
+                      >
+                        {notification.post?.title}
+                      </Link>
+                    ) : (
+                      "your post"
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-charcoal-500">
+                    {formatRelativeTime(new Date(notification.created_at))}
+                  </p>
+                </div>
+              </li>
+            );
+          })
         ) : (
-          <li className="p-4 text-sm text-charcoal-500">
-            No notifications yet.
+          <li>
+            <EmptyState title="All quiet" description="When someone replies to your threads, you'll see it here." />
           </li>
         )}
       </ul>
-    </main>
+    </PageContainer>
   );
 }

@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { ArrowLeft, Lock, MessageSquare, Pin, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/dal";
 import { getCategoryBySlug } from "@/lib/queries/categories";
 import { getPageRange, getTotalPages } from "@/lib/pagination";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import { categoryIcon } from "@/lib/category-icons";
+import { staggerStyle } from "@/lib/stagger";
+import type { Role } from "@/lib/roles";
 import { Avatar } from "@/components/avatar";
 import { Pagination } from "@/components/pagination";
-import { formatRelativeTime } from "@/lib/format-relative-time";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 
 const POSTS_PER_PAGE = 20;
 
@@ -48,7 +55,7 @@ export default async function CategoryPage({
   const { data: posts, count } = await supabase
     .from("posts")
     .select(
-      "id, title, slug, is_pinned, is_locked, created_at, profiles(username, display_name, avatar_url)",
+      "id, title, slug, is_pinned, is_locked, created_at, profiles(username, display_name, avatar_url, role)",
       { count: "exact" },
     )
     .eq("category_id", category.id)
@@ -60,112 +67,145 @@ export default async function CategoryPage({
   const totalPages = getTotalPages(count, POSTS_PER_PAGE);
 
   const postIds = posts?.map((p) => p.id) ?? [];
-  const { data: comments } = postIds.length
+  const { data: replyStats } = postIds.length
     ? await supabase
-        .from("comments")
-        .select("post_id, created_at")
-        .eq("is_deleted", false)
+        .from("post_reply_stats")
+        .select("post_id, reply_count, last_reply_at")
         .in("post_id", postIds)
-    : { data: [] as { post_id: string | null; created_at: string }[] };
+    : { data: [] };
 
-  const replyCountByPost = new Map<string, number>();
-  const lastReplyAtByPost = new Map<string, string>();
-  comments?.forEach(({ post_id, created_at }) => {
-    if (!post_id) return;
-    replyCountByPost.set(post_id, (replyCountByPost.get(post_id) ?? 0) + 1);
-    const existing = lastReplyAtByPost.get(post_id);
-    if (!existing || new Date(created_at) > new Date(existing)) {
-      lastReplyAtByPost.set(post_id, created_at);
-    }
-  });
+  const replyStatsByPost = new Map((replyStats ?? []).map((stats) => [stats.post_id, stats]));
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-12">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-charcoal-200">
-            {category.name}
-          </h1>
-          {category.description && (
-            <p className="text-sm text-charcoal-400">
-              {category.description}
-            </p>
-          )}
-        </div>
-        {profile && (
-          <Link
-            href={`/c/${slug}/new`}
-            className="rounded bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-600"
-          >
-            New post
-          </Link>
-        )}
-      </div>
+    <PageContainer>
+      <Link href="/" className="group flex w-fit items-center gap-1.5 text-sm text-charcoal-400 transition-colors hover:text-gold-300">
+        <ArrowLeft className="size-4 transition-transform duration-300 ease-spring group-hover:-translate-x-1" />
+        All categories
+      </Link>
 
-      <ul className="flex flex-col divide-y divide-charcoal-700 rounded border border-charcoal-700 bg-charcoal-900">
+      <PageHeader
+        icon={categoryIcon(slug)}
+        title={category.name}
+        description={category.description}
+        actions={
+          profile && (
+            <Link href={`/c/${slug}/new`} className="group btn btn-primary">
+              <Plus className="size-4 transition-transform duration-300 ease-spring group-hover:rotate-90" />
+              New thread
+            </Link>
+          )
+        }
+      />
+
+      <ul className="panel flex flex-col overflow-hidden">
         {posts?.length ? (
-          posts.map((post) => {
-            const replyCount = replyCountByPost.get(post.id) ?? 0;
-            const lastActivityAt = lastReplyAtByPost.get(post.id) ?? post.created_at;
+          posts.map((post, index) => {
+            const stats = replyStatsByPost.get(post.id);
 
             return (
-              <li
+              <ThreadRow
                 key={post.id}
-                className="flex flex-col gap-2 p-4 hover:bg-charcoal-800 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <Link href={`/c/${slug}/${post.slug}`} className="block">
-                    <span
-                      className={`font-medium ${post.is_pinned ? "text-gold-400" : "text-green-400"}`}
-                    >
-                      {post.is_pinned && "📌 "}
-                      {post.title}
-                    </span>
-                    {post.is_locked && (
-                      <span className="ml-2 text-xs uppercase text-charcoal-500">
-                        locked
-                      </span>
-                    )}
-                  </Link>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Avatar
-                      url={post.profiles?.avatar_url}
-                      name={post.profiles?.display_name ?? "?"}
-                      size={20}
-                    />
-                    <p className="text-sm text-charcoal-400">
-                      by{" "}
-                      {post.profiles?.username ? (
-                        <Link
-                          href={`/u/${post.profiles.username}`}
-                          className="hover:text-charcoal-200"
-                        >
-                          {post.profiles.display_name}
-                        </Link>
-                      ) : (
-                        "Unknown"
-                      )}{" "}
-                      &middot; {new Date(post.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-
-                <span className="shrink-0 text-sm text-charcoal-400 sm:text-right">
-                  {replyCount} {replyCount === 1 ? "reply" : "replies"}
-                  <br />
-                  {formatRelativeTime(new Date(lastActivityAt))}
-                </span>
-              </li>
+                href={`/c/${slug}/${post.slug}`}
+                title={post.title}
+                isPinned={post.is_pinned}
+                isLocked={post.is_locked}
+                createdAt={post.created_at}
+                author={post.profiles}
+                replyCount={stats?.reply_count ?? 0}
+                lastActivityAt={stats?.last_reply_at ?? post.created_at}
+                index={index}
+              />
             );
           })
         ) : (
-          <li className="p-4 text-sm text-charcoal-500">
-            No posts yet. Be the first to start one.
+          <li>
+            <EmptyState
+              title="No threads yet"
+              description="Gather round the campfire and start the first conversation."
+            />
           </li>
         )}
       </ul>
 
       <Pagination page={page} totalPages={totalPages} basePath={`/c/${slug}`} />
-    </main>
+    </PageContainer>
+  );
+}
+
+function ThreadRow({
+  href,
+  title,
+  isPinned,
+  isLocked,
+  createdAt,
+  author,
+  replyCount,
+  lastActivityAt,
+  index,
+}: {
+  href: string;
+  title: string;
+  isPinned: boolean;
+  isLocked: boolean;
+  createdAt: string;
+  author: { username: string; display_name: string; avatar_url: string | null; role: Role } | null;
+  replyCount: number;
+  lastActivityAt: string;
+  index: number;
+}) {
+  const accentClass = isPinned ? "bg-gold-400" : "bg-green-500";
+
+  return (
+    <li
+      className="group stagger relative flex animate-rise-in items-center gap-3 border-b border-charcoal-700/60 px-4 py-3.5 transition-colors duration-200 last:border-b-0 hover:bg-white/3 sm:gap-4 sm:px-5"
+      style={staggerStyle(index)}
+    >
+      {/* Accent bar that grows in from the left edge on hover. */}
+      <span
+        className={`absolute inset-y-2 left-0 w-0.5 origin-center scale-y-0 rounded-full transition-transform duration-300 ease-spring group-hover:scale-y-100 ${accentClass}`}
+      />
+
+      <Avatar
+        url={author?.avatar_url}
+        name={author?.display_name ?? "?"}
+        size={36}
+        role={author?.role}
+      />
+
+      <div className="min-w-0 flex-1 transition-transform duration-300 ease-spring group-hover:translate-x-1">
+        <div className="flex items-center gap-2">
+          {isPinned && <Pin className="size-3.5 shrink-0 text-gold-400" aria-label="Pinned" />}
+          {isLocked && <Lock className="size-3.5 shrink-0 text-charcoal-500" aria-label="Locked" />}
+          <Link
+            href={href}
+            className={`truncate font-semibold transition-colors after:absolute after:inset-0 ${
+              isPinned ? "text-gold-300 group-hover:text-gold-300" : "text-charcoal-100 group-hover:text-green-300"
+            }`}
+          >
+            {title}
+          </Link>
+        </div>
+        <p className="mt-0.5 truncate text-xs text-charcoal-500">
+          by{" "}
+          {author?.username ? (
+            <Link href={`/u/${author.username}`} className="relative z-10 text-charcoal-400 hover:text-gold-300">
+              {author.display_name}
+            </Link>
+          ) : (
+            "Unknown"
+          )}{" "}
+          · {new Date(createdAt).toLocaleDateString()}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-charcoal-500">
+        <span className="flex items-center gap-1 text-charcoal-300">
+          <MessageSquare className="size-3.5" aria-hidden="true" />
+          {replyCount}
+          <span className="sr-only">{replyCount === 1 ? "reply" : "replies"}</span>
+        </span>
+        <span>{formatRelativeTime(new Date(lastActivityAt))}</span>
+      </div>
+    </li>
   );
 }

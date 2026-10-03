@@ -1,7 +1,17 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { CircleCheck, KeyRound } from "lucide-react";
 import { requireProfile } from "@/lib/dal";
 import { updateProfile, uploadAvatar } from "@/lib/actions/profile";
+import { ACCEPTED_IMAGE_TYPES } from "@/lib/storage";
+import { staggerStyle } from "@/lib/stagger";
+import { Avatar } from "@/components/avatar";
+import { ErrorBanner } from "@/components/error-banner";
+import { Field } from "@/components/field";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { SubmitButton } from "@/components/submit-button";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -18,102 +28,78 @@ export default async function SettingsPage({
 }) {
   const profile = await requireProfile("/settings");
   const { error, success } = await searchParams;
+  const successMessage = success ? SUCCESS_MESSAGES[success] : undefined;
 
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col gap-8 px-4 py-16">
-      <h1 className="text-2xl font-semibold text-charcoal-200">Settings</h1>
+    <PageContainer width="narrow" className="max-w-xl">
+      <PageHeader title="Settings" description="How the rest of the guild sees you." />
 
-      {error && (
-        <p className="rounded border border-danger-600 bg-danger-950 px-3 py-2 text-sm text-danger-400">
-          {error}
+      <ErrorBanner message={error} />
+      {successMessage && (
+        <p
+          role="status"
+          className="flex animate-rise-in items-center gap-2.5 rounded-lg border border-green-700 bg-green-950/80 px-4 py-3 text-sm text-green-300 shadow-[0_0_24px_-8px_rgb(79_184_114/0.6)]"
+        >
+          <CircleCheck className="size-4 shrink-0" aria-hidden="true" />
+          {successMessage}
         </p>
       )}
-      {success && SUCCESS_MESSAGES[success] && (
-        <p className="rounded border border-green-800 bg-green-950 px-3 py-2 text-sm text-green-400">
-          {SUCCESS_MESSAGES[success]}
-        </p>
-      )}
 
-      <div className="flex flex-col gap-3">
-        <span className="text-sm text-charcoal-300">Avatar</span>
-        <div className="flex items-center gap-4">
-          {profile.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.avatar_url}
-              alt=""
-              className="h-16 w-16 rounded-full object-cover"
+      <SettingsSection title="Avatar" index={0}>
+        <form action={uploadAvatar} encType="multipart/form-data" className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <Avatar url={profile.avatar_url} name={profile.display_name} size={72} role={profile.role} />
+          <div className="flex flex-1 flex-col gap-3">
+            <input
+              name="avatar"
+              type="file"
+              accept={ACCEPTED_IMAGE_TYPES}
+              required
+              className="text-sm text-charcoal-400 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-charcoal-600 file:bg-charcoal-800 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-charcoal-200 file:transition-colors hover:file:border-gold-700 hover:file:text-gold-300"
             />
-          ) : (
-            <div className="h-16 w-16 rounded-full bg-charcoal-800" />
-          )}
-        </div>
-
-        <form
-          action={uploadAvatar}
-          encType="multipart/form-data"
-          className="flex flex-col gap-3"
-        >
-          <input
-            name="avatar"
-            type="file"
-            accept="image/*"
-            required
-            className="text-sm text-charcoal-300"
-          />
-          <button
-            type="submit"
-            className="self-start rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
-          >
-            Upload
-          </button>
+            <p className="text-xs text-charcoal-500">PNG, JPEG, GIF, or WebP, up to 5MB.</p>
+            <SubmitButton className="btn btn-secondary btn-sm self-start">Upload</SubmitButton>
+          </div>
         </form>
-      </div>
+      </SettingsSection>
 
-      <form action={updateProfile} className="flex flex-col gap-4">
-        <span className="text-sm text-charcoal-300">Profile</span>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="displayName" className="text-sm text-charcoal-400">
-            Display name
-          </label>
-          <input
-            id="displayName"
-            name="displayName"
-            required
-            defaultValue={profile.display_name}
-            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="bio" className="text-sm text-charcoal-400">
-            Bio
-          </label>
-          <textarea
-            id="bio"
-            name="bio"
-            rows={4}
-            maxLength={500}
-            defaultValue={profile.bio ?? ""}
-            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-          />
-        </div>
-        <button
-          type="submit"
-          className="self-start rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
-        >
-          Save profile
-        </button>
-      </form>
+      <SettingsSection title="Profile" index={1}>
+        <form action={updateProfile} className="flex flex-col gap-4">
+          <Field label="Display name" htmlFor="displayName">
+            <input id="displayName" name="displayName" required defaultValue={profile.display_name} className="input" />
+          </Field>
+          <Field label="Bio" htmlFor="bio">
+            <textarea
+              id="bio"
+              name="bio"
+              rows={4}
+              maxLength={500}
+              defaultValue={profile.bio ?? ""}
+              placeholder="Main, alts, favourite raid, best loot drop..."
+              className="input resize-y"
+            />
+          </Field>
+          <SubmitButton className="btn btn-primary self-end">Save profile</SubmitButton>
+        </form>
+      </SettingsSection>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-sm text-charcoal-300">Password</span>
-        <Link
-          href="/reset-password"
-          className="self-start rounded border border-charcoal-600 px-4 py-2 text-sm text-charcoal-300 hover:text-charcoal-100"
-        >
+      <SettingsSection title="Password" index={2}>
+        <Link href="/reset-password" className="group btn btn-secondary self-start">
+          <KeyRound className="size-4 transition-transform duration-300 ease-spring group-hover:-rotate-45" />
           Change password
         </Link>
-      </div>
-    </main>
+      </SettingsSection>
+    </PageContainer>
+  );
+}
+
+function SettingsSection({ title, index, children }: { title: string; index: number; children: ReactNode }) {
+  return (
+    <section
+      className="panel stagger flex animate-rise-in flex-col gap-4 p-5 sm:p-6"
+      style={staggerStyle(index + 1)}
+    >
+      <h2 className="heading text-base">{title}</h2>
+      {children}
+    </section>
   );
 }

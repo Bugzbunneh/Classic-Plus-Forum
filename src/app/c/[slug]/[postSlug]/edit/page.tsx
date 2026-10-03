@@ -1,10 +1,20 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/dal";
 import { getCategoryBySlug } from "@/lib/queries/categories";
 import { isModerator } from "@/lib/roles";
 import { updatePost } from "@/lib/actions/posts";
 import { Composer } from "@/components/composer";
+import { ErrorBanner } from "@/components/error-banner";
+import { Field } from "@/components/field";
+import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
+import { SubmitButton } from "@/components/submit-button";
+
+export const metadata: Metadata = { title: "Edit thread" };
 
 export default async function EditPostPage({
   params,
@@ -39,51 +49,37 @@ export default async function EditPostPage({
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-12">
-      <h1 className="text-2xl font-semibold text-charcoal-200">Edit post</h1>
+    <PageContainer>
+      <Link
+        href={`/c/${slug}/${postSlug}`}
+        className="group flex w-fit items-center gap-1.5 text-sm text-charcoal-400 transition-colors hover:text-gold-300"
+      >
+        <ArrowLeft className="size-4 transition-transform duration-300 ease-spring group-hover:-translate-x-1" />
+        Back to thread
+      </Link>
 
-      {error && (
-        <p className="rounded border border-danger-600 bg-danger-950 px-3 py-2 text-sm text-danger-400">
-          {error}
-        </p>
-      )}
+      <PageHeader eyebrow={category.name} title="Edit thread" />
+
+      <ErrorBanner message={error} />
 
       <form
         action={updatePost.bind(null, slug, postSlug, post.id)}
         encType="multipart/form-data"
-        className="flex flex-col gap-4"
+        className="panel flex animate-rise-in flex-col gap-5 p-5 sm:p-6"
       >
-        <div className="flex flex-col gap-1">
-          <label htmlFor="title" className="text-sm text-charcoal-300">
-            Title
-          </label>
-          <input
-            id="title"
-            name="title"
-            required
-            defaultValue={post.title}
-            className="rounded border border-charcoal-600 bg-charcoal-900 px-3 py-2 text-charcoal-200 focus:border-green-600 focus:outline-none"
-          />
+        <Field label="Title" htmlFor="title">
+          <input id="title" name="title" required defaultValue={post.title} className="input" />
+        </Field>
+        <Field label="Message" htmlFor="body">
+          <Composer id="body" defaultValue={post.body} existingImageUrl={post.image_url} required rows={8} />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <Link href={`/c/${slug}/${postSlug}`} className="btn btn-secondary">
+            Cancel
+          </Link>
+          <SubmitButton>Save changes</SubmitButton>
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="body" className="text-sm text-charcoal-300">
-            Message
-          </label>
-          <Composer
-            id="body"
-            defaultValue={post.body}
-            existingImageUrl={post.image_url}
-            required
-            rows={8}
-          />
-        </div>
-        <button
-          type="submit"
-          className="self-start rounded bg-green-700 px-4 py-2 font-medium text-white hover:bg-green-600"
-        >
-          Save
-        </button>
       </form>
-    </main>
+    </PageContainer>
   );
 }

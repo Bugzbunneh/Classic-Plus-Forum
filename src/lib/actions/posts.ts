@@ -6,14 +6,16 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/dal";
 import { getCategoryBySlug } from "@/lib/queries/categories";
 import { redirectWithError } from "@/lib/redirect-with-error";
+import { ensureWriteSucceeded } from "@/lib/ensure-write-succeeded";
+import { getFormString } from "@/lib/form-data";
 import { uniqueSlug } from "@/lib/slug";
 import { uploadPostImage } from "@/lib/storage";
 
 export async function createPost(categorySlug: string, formData: FormData) {
   const profile = await requireProfile(`/c/${categorySlug}/new`);
 
-  const title = (formData.get("title") as string).trim();
-  const body = (formData.get("body") as string).trim();
+  const title = getFormString(formData, "title").trim();
+  const body = getFormString(formData, "body").trim();
   if (!title || !body) {
     redirectWithError(`/c/${categorySlug}/new`, "Title and message are required");
   }
@@ -56,12 +58,13 @@ export async function updatePost(
   postId: string,
   formData: FormData,
 ) {
-  const profile = await requireProfile(`/c/${categorySlug}/${postSlug}/edit`);
+  const editPath = `/c/${categorySlug}/${postSlug}/edit`;
+  const profile = await requireProfile(editPath);
 
-  const title = (formData.get("title") as string).trim();
-  const body = (formData.get("body") as string).trim();
+  const title = getFormString(formData, "title").trim();
+  const body = getFormString(formData, "body").trim();
   if (!title || !body) {
-    redirectWithError(`/c/${categorySlug}/${postSlug}/edit`, "Title and message are required");
+    redirectWithError(editPath, "Title and message are required");
   }
 
   const supabase = await createClient();
@@ -71,16 +74,15 @@ export async function updatePost(
     formData.get("image"),
   );
   if (imageError) {
-    redirectWithError(`/c/${categorySlug}/${postSlug}/edit`, imageError);
+    redirectWithError(editPath, imageError);
   }
 
-  const { error } = await supabase
+  const result = await supabase
     .from("posts")
     .update({ title, body, ...(imageUrl && { image_url: imageUrl }) })
-    .eq("id", postId);
-  if (error) {
-    redirectWithError(`/c/${categorySlug}/${postSlug}/edit`, error.message);
-  }
+    .eq("id", postId)
+    .select("id");
+  ensureWriteSucceeded(result, editPath);
 
   revalidatePath(`/c/${categorySlug}/${postSlug}`);
   redirect(`/c/${categorySlug}/${postSlug}`);
@@ -92,9 +94,17 @@ export async function togglePostPin(
   postId: string,
   isPinned: boolean,
 ) {
+  const postPath = `/c/${categorySlug}/${postSlug}`;
   const supabase = await createClient();
-  await supabase.from("posts").update({ is_pinned: !isPinned }).eq("id", postId);
-  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+
+  const result = await supabase
+    .from("posts")
+    .update({ is_pinned: !isPinned })
+    .eq("id", postId)
+    .select("id");
+  ensureWriteSucceeded(result, postPath);
+
+  revalidatePath(postPath);
   revalidatePath(`/c/${categorySlug}`);
 }
 
@@ -104,14 +114,29 @@ export async function togglePostLock(
   postId: string,
   isLocked: boolean,
 ) {
+  const postPath = `/c/${categorySlug}/${postSlug}`;
   const supabase = await createClient();
-  await supabase.from("posts").update({ is_locked: !isLocked }).eq("id", postId);
-  revalidatePath(`/c/${categorySlug}/${postSlug}`);
+
+  const result = await supabase
+    .from("posts")
+    .update({ is_locked: !isLocked })
+    .eq("id", postId)
+    .select("id");
+  ensureWriteSucceeded(result, postPath);
+
+  revalidatePath(postPath);
 }
 
-export async function deletePost(categorySlug: string, postId: string) {
+export async function deletePost(categorySlug: string, postSlug: string, postId: string) {
   const supabase = await createClient();
-  await supabase.from("posts").update({ is_deleted: true }).eq("id", postId);
+
+  const result = await supabase
+    .from("posts")
+    .update({ is_deleted: true })
+    .eq("id", postId)
+    .select("id");
+  ensureWriteSucceeded(result, `/c/${categorySlug}/${postSlug}`);
+
   revalidatePath(`/c/${categorySlug}`);
   redirect(`/c/${categorySlug}`);
 }

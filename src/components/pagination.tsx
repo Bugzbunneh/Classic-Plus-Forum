@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
  * `basePath` is the page's own URL (e.g. `/c/general-discussion`); `param` is
@@ -21,20 +22,26 @@ export function Pagination({
   }
 
   return (
-    <div className="flex items-center gap-4 text-sm text-charcoal-400">
-      {page > 1 && (
-        <Link href={`${basePath}?${param}=${page - 1}`} className="hover:text-charcoal-200">
-          &larr; Previous
+    <nav aria-label="Pagination" className="flex items-center justify-center gap-3">
+      {page > 1 ? (
+        <Link href={`${basePath}?${param}=${page - 1}`} className="group btn btn-secondary btn-sm">
+          <ChevronLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
+          Previous
         </Link>
+      ) : (
+        <span className="w-23" />
       )}
-      <span>
-        Page {page} of {totalPages}
+      <span className="chip">
+        Page <strong className="text-charcoal-100">{page}</strong> of {totalPages}
       </span>
-      {page < totalPages && (
-        <Link href={`${basePath}?${param}=${page + 1}`} className="hover:text-charcoal-200">
-          Next &rarr;
+      {page < totalPages ? (
+        <Link href={`${basePath}?${param}=${page + 1}`} className="group btn btn-secondary btn-sm">
+          Next
+          <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
+      ) : (
+        <span className="w-23" />
       )}
-    </div>
+    </nav>
   );
 }
